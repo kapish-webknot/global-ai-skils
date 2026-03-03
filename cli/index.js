@@ -5,336 +5,288 @@ import chalk from 'chalk';
 import fs from 'fs-extra';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import https from 'https';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Available tech stacks and their sub-skills
-const TECH_STACKS = {
-  'react': {
-    name: 'React',
-    subSkills: [
-      'component-design',
-      'hooks',
-      'performance',
-      'state-management',
-      'testing',
-      'accessibility',
-      'error-handling',
-      'code-organization'
-    ]
+// Available skill sources
+const SOURCES = {
+  callstack: {
+    name: 'Callstack Agent Skills',
+    repo: 'callstackincubator/agent-skills',
+    branch: 'main',
+    url: 'https://github.com/callstackincubator/agent-skills',
+    description: 'React Native performance & optimization (from The Ultimate Guide)',
+    skillsPath: 'skills'
   },
-  'react-native': {
-    name: 'React Native',
-    subSkills: [
-      'performance-optimization',
-      'upgrade-workflows',
-      'debugging',
-      'navigation',
-      'state-management',
-      'testing',
-      'native-modules',
-      'animation'
-    ]
-  },
-  'nodejs': {
-    name: 'Node.js',
-    subSkills: [
-      'api-design',
-      'authentication',
-      'database-integration',
-      'testing',
-      'security',
-      'performance',
-      'error-handling',
-      'deployment'
-    ]
-  },
-  'python': {
-    name: 'Python',
-    subSkills: [
-      'web-development',
-      'data-science',
-      'testing',
-      'async-programming',
-      'packaging',
-      'performance',
-      'security',
-      'api-development'
-    ]
-  },
-  'typescript': {
-    name: 'TypeScript',
-    subSkills: [
-      'type-system',
-      'generics',
-      'decorators',
-      'module-system',
-      'testing',
-      'migration-from-js',
-      'advanced-patterns',
-      'performance'
-    ]
-  },
-  'nextjs': {
-    name: 'Next.js',
-    subSkills: [
-      'app-router',
-      'server-components',
-      'data-fetching',
-      'authentication',
-      'seo',
-      'performance',
-      'deployment',
-      'api-routes'
-    ]
+  vercel: {
+    name: 'Vercel Agent Skills',
+    repo: 'vercel-labs/agent-skills',
+    branch: 'main',
+    url: 'https://github.com/vercel-labs/agent-skills',
+    description: 'React, Next.js & composition best practices (40+ rules)',
+    skillsPath: 'skills'
   }
 };
 
-// Skill template generator
-function generateSkillContent(stack, subSkill) {
-  const stackInfo = TECH_STACKS[stack];
-  const subSkillName = subSkill.split('-').map(word => 
-    word.charAt(0).toUpperCase() + word.slice(1)
-  ).join(' ');
-
-  const docLinks = {
-    'react': 'https://react.dev',
-    'react-native': 'https://reactnative.dev/docs/getting-started',
-    'nodejs': 'https://nodejs.org/docs/latest/api/',
-    'python': 'https://docs.python.org/3/',
-    'typescript': 'https://www.typescriptlang.org/docs/',
-    'nextjs': 'https://nextjs.org/docs'
-  };
-
-  return `# ${stackInfo.name} - ${subSkillName}
-
-## Overview
-
-This skill provides Claude with expert knowledge on ${subSkillName.toLowerCase()} in ${stackInfo.name} applications.
-
-## Purpose
-
-Enable AI assistants to:
-- Apply best practices for ${subSkillName.toLowerCase()}
-- Identify and resolve common issues
-- Provide step-by-step guidance for implementation
-- Suggest optimizations and improvements
-
-## Step-by-Step Instructions
-
-### 1. Initial Assessment
-
-\`\`\`
-Step 1: Analyze the current state
-- Review existing code structure
-- Identify pain points and areas for improvement
-- Document current configuration and dependencies
-\`\`\`
-
-### 2. Planning
-
-\`\`\`
-Step 2: Create an action plan
-- Define clear objectives
-- Break down into manageable tasks
-- Estimate effort and impact
-- Identify dependencies
-\`\`\`
-
-### 3. Implementation
-
-\`\`\`
-Step 3: Execute the plan
-- Follow incremental approach
-- Test after each change
-- Document modifications
-- Review and refactor as needed
-\`\`\`
-
-### 4. Verification
-
-\`\`\`
-Step 4: Validate the implementation
-- Run tests
-- Check performance metrics
-- Verify functionality
-- Get peer review
-\`\`\`
-
-## Best Practices
-
-1. **Start Small**: Begin with minimal changes and iterate
-2. **Document Everything**: Keep track of changes and reasons
-3. **Test Frequently**: Run tests after each significant change
-4. **Monitor Impact**: Measure before and after metrics
-5. **Rollback Plan**: Always have a way to revert changes
-
-## Common Pitfalls
-
-| Pitfall | Solution |
-|---------|----------|
-| Skipping analysis | Always assess current state first |
-| Making too many changes at once | Break into smaller, testable changes |
-| Not testing enough | Implement comprehensive test coverage |
-| Ignoring documentation | Document as you go |
-
-## Code Examples
-
-### Example 1: Basic Implementation
-
-\`\`\`${stack === 'python' ? 'python' : stack === 'typescript' ? 'typescript' : 'javascript'}
-// TODO: Add specific code example for ${subSkillName}
-// This is a placeholder that should be customized based on the specific sub-skill
-\`\`\`
-
-### Example 2: Advanced Pattern
-
-\`\`\`${stack === 'python' ? 'python' : stack === 'typescript' ? 'typescript' : 'javascript'}
-// TODO: Add advanced pattern example for ${subSkillName}
-\`\`\`
-
-## CLI Commands
-
-\`\`\`bash
-# Common commands for ${subSkillName.toLowerCase()}
-# TODO: Add specific CLI commands
-\`\`\`
-
-## References
-
-- [${stackInfo.name} Official Documentation](${docLinks[stack]})
-- [Best Practices Guide](#)
-- [Community Resources](#)
-
-## Checklist
-
-Use this checklist when applying this skill:
-
-- [ ] Assessed current state
-- [ ] Created action plan
-- [ ] Implemented changes incrementally
-- [ ] Added/updated tests
-- [ ] Documented changes
-- [ ] Verified functionality
-- [ ] Measured impact
-- [ ] Got code review
-
----
-*Generated by Skill Pack Generator CLI*
-`;
+// Fetch from GitHub API
+function fetchJSON(url) {
+  return new Promise((resolve, reject) => {
+    https.get(url, {
+      headers: { 'User-Agent': 'global-ai-skills-cli' }
+    }, (res) => {
+      if (res.statusCode !== 200) {
+        reject(new Error(`HTTP ${res.statusCode}: ${url}`));
+        return;
+      }
+      
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          resolve(JSON.parse(data));
+        } catch (e) {
+          reject(e);
+        }
+      });
+    }).on('error', reject);
+  });
 }
 
-// Main README template for a skill pack
-function generateMainReadme(stack, selectedSkills) {
-  const stackInfo = TECH_STACKS[stack];
+// Fetch raw file from GitHub
+function fetchRaw(url) {
+  return new Promise((resolve, reject) => {
+    https.get(url, (res) => {
+      if (res.statusCode === 404) {
+        reject(new Error(`File not found: ${url}`));
+        return;
+      }
+      if (res.statusCode !== 200) {
+        reject(new Error(`HTTP ${res.statusCode}: ${url}`));
+        return;
+      }
+      
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => resolve(data));
+    }).on('error', reject);
+  });
+}
+
+// Discover available skills from a GitHub repo
+async function discoverSkills(source) {
+  const apiUrl = `https://api.github.com/repos/${source.repo}/git/trees/${source.branch}?recursive=1`;
   
-  let skillsList = selectedSkills.map(skill => {
-    const skillName = skill.split('-').map(word => 
-      word.charAt(0).toUpperCase() + word.slice(1)
-    ).join(' ');
-    return `| ${skillName} | [View Skill](./${skill}.md) |`;
-  }).join('\n');
+  try {
+    const tree = await fetchJSON(apiUrl);
+    
+    // Find all SKILL.md files
+    const skillPaths = tree.tree
+      .filter(item => item.path.includes('/SKILL.md') && item.path.startsWith(source.skillsPath))
+      .map(item => {
+        const parts = item.path.split('/');
+        const skillName = parts[parts.length - 2];
+        return {
+          name: skillName,
+          path: item.path,
+          fullPath: parts.slice(0, -1).join('/')
+        };
+      });
 
-  return `# ${stackInfo.name} AI Skill Pack
+    // For each skill, try to find sub-skills (references or rules)
+    const skills = [];
+    for (const skill of skillPaths) {
+      const subSkills = tree.tree
+        .filter(item => 
+          item.type === 'blob' &&
+          item.path.startsWith(skill.fullPath) &&
+          (item.path.includes('/references/') || item.path.includes('/rules/')) &&
+          item.path.endsWith('.md') &&
+          !item.path.endsWith('_sections.md') &&
+          !item.path.endsWith('_template.md')
+        )
+        .map(item => {
+          const filename = item.path.split('/').pop();
+          return filename.replace('.md', '');
+        });
 
-## Based On
+      skills.push({
+        name: skill.name,
+        displayName: skill.name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+        subSkills: subSkills.length > 0 ? subSkills : null,
+        hasSubSkills: subSkills.length > 0,
+        subSkillsPath: subSkills.length > 0 ? (tree.tree.find(i => i.path.includes(`${skill.fullPath}/references/`)) ? 'references' : 'rules') : null
+      });
+    }
 
-- [Callstack Agent Skills](https://github.com/callstackincubator/agent-skills)
+    return skills;
+  } catch (error) {
+    console.error(chalk.red(`Failed to discover skills: ${error.message}`));
+    return [];
+  }
+}
 
-## Purpose
+// Generate main README
+function generateMainReadme(sourceName, skillName, selectedSubSkills, source) {
+  const hasSubSkills = selectedSubSkills && selectedSubSkills.length > 0;
+  
+  let skillsList = '';
+  if (hasSubSkills) {
+    const subSkillsPath = selectedSubSkills[0].includes('references/') ? 'references' : 'rules';
+    skillsList = selectedSubSkills.map(skill => {
+      const displayName = skill.split('-').map(word => 
+        word.charAt(0).toUpperCase() + word.slice(1)
+      ).join(' ');
+      return `| ${displayName} | [View Skill](./${subSkillsPath}/${skill}.md) |`;
+    }).join('\n');
+  }
 
-This skill pack enhances AI assistants with ${stackInfo.name} best practices, 
-performance optimization strategies, and architecture guidance.
+  return `# ${skillName.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')} - AI Skill Pack
 
-## Available Skills
+## Source
+
+Fetched from **${source.name}**  
+${source.url}
+
+**Always up-to-date** — re-run the CLI anytime to fetch the latest.
+
+## Description
+
+${source.description}
+
+${hasSubSkills ? `## Available Skills
 
 | Skill | Reference |
 |-------|-----------|
 ${skillsList}
 
+## Main Skill File
+
+See [SKILL.md](./SKILL.md) for the main quick reference.
+` : ''}
+
 ## Usage
 
-Each skill file contains:
-- **Overview**: Purpose and scope of the skill
-- **Step-by-Step Instructions**: Actionable guidance for Claude
-- **Best Practices**: Recommended approaches
-- **Common Pitfalls**: Issues to avoid
-- **Code Examples**: Practical implementations
-- **References**: Links to documentation and resources
-
-## How to Use with Claude
-
+Provide these files as context to Claude or any AI coding assistant:
 1. Copy the relevant skill content
-2. Provide it as context to Claude
+2. Provide it as context
 3. Ask specific questions related to the skill area
-4. Claude will follow the structured guidance
+
+## Credits
+
+From [${source.name}](${source.url})
 
 ---
-*Generated by Skill Pack Generator CLI*
+*Fetched via global-ai-skills CLI*
 `;
 }
 
 async function main() {
-  console.log(chalk.blue.bold('\n🚀 Skill Pack Generator CLI\n'));
-  console.log(chalk.gray('Generate Claude-optimized skill packs for your tech stack\n'));
+  console.log(chalk.blue.bold('\n🚀 AI Skills Fetcher CLI\n'));
+  console.log(chalk.gray('Fetch live skill packs from Callstack & Vercel\n'));
 
   try {
-    // Step 1: Select tech stack
-    const { stack } = await inquirer.prompt([
+    // Step 1: Select source
+    const { sourceKey } = await inquirer.prompt([
       {
         type: 'list',
-        name: 'stack',
-        message: 'Select a tech stack:',
-        choices: Object.keys(TECH_STACKS).map(key => ({
-          name: TECH_STACKS[key].name,
-          value: key
+        name: 'sourceKey',
+        message: 'Select a skill source:',
+        choices: Object.entries(SOURCES).map(([key, src]) => ({
+          name: `${src.name} — ${src.description}`,
+          value: key,
+          short: src.name
         }))
       }
     ]);
 
-    // Step 2: Select sub-skills
-    const { subSkills } = await inquirer.prompt([
-      {
-        type: 'checkbox',
-        name: 'subSkills',
-        message: 'Select sub-skills to include:',
-        choices: TECH_STACKS[stack].subSkills.map(skill => ({
-          name: skill.split('-').map(word => 
-            word.charAt(0).toUpperCase() + word.slice(1)
-          ).join(' '),
-          value: skill,
-          checked: true
-        }))
-      }
-    ]);
+    const source = SOURCES[sourceKey];
 
-    if (subSkills.length === 0) {
-      console.log(chalk.yellow('\n⚠️  No sub-skills selected. Exiting.\n'));
+    console.log(chalk.cyan(`\n🔍 Discovering skills from ${source.name}...\n`));
+
+    // Step 2: Discover available skills
+    const availableSkills = await discoverSkills(source);
+
+    if (availableSkills.length === 0) {
+      console.log(chalk.yellow('⚠️  No skills found. Exiting.\n'));
       return;
     }
 
-    // Step 3: Output directory
+    // Step 3: Select skill pack
+    const { skillName } = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'skillName',
+        message: 'Select a skill pack:',
+        choices: availableSkills.map(skill => ({
+          name: `${skill.displayName}${skill.hasSubSkills ? ` (${skill.subSkills.length} sub-skills)` : ''}`,
+          value: skill.name,
+          short: skill.displayName
+        }))
+      }
+    ]);
+
+    const selectedSkill = availableSkills.find(s => s.name === skillName);
+
+    let subSkillsToFetch = [];
+    if (selectedSkill.hasSubSkills) {
+      // Step 4: Select sub-skills
+      const { subSkills } = await inquirer.prompt([
+        {
+          type: 'checkbox',
+          name: 'subSkills',
+          message: 'Select sub-skills to fetch:',
+          choices: [
+            { name: 'Select All', value: '__all__', checked: true },
+            new inquirer.Separator(),
+            ...selectedSkill.subSkills.map(skill => ({
+              name: skill.split('-').map(word => 
+                word.charAt(0).toUpperCase() + word.slice(1)
+              ).join(' '),
+              value: skill,
+              checked: false
+            }))
+          ]
+        }
+      ]);
+
+      if (subSkills.includes('__all__')) {
+        subSkillsToFetch = selectedSkill.subSkills;
+      } else {
+        subSkillsToFetch = subSkills;
+      }
+
+      if (subSkillsToFetch.length === 0) {
+        console.log(chalk.yellow('\n⚠️  No sub-skills selected. Exiting.\n'));
+        return;
+      }
+    }
+
+    // Step 5: Output directory
     const { outputDir } = await inquirer.prompt([
       {
         type: 'input',
         name: 'outputDir',
         message: 'Output directory:',
-        default: `./${stack}`
+        default: `./${skillName}`
       }
     ]);
 
-    // Step 4: Confirm
+    // Step 6: Confirm
     console.log(chalk.cyan('\n📋 Summary:'));
-    console.log(chalk.white(`   Tech Stack: ${TECH_STACKS[stack].name}`));
-    console.log(chalk.white(`   Sub-skills: ${subSkills.length} selected`));
+    console.log(chalk.white(`   Source: ${source.name}`));
+    console.log(chalk.white(`   Skill Pack: ${selectedSkill.displayName}`));
+    if (selectedSkill.hasSubSkills) {
+      console.log(chalk.white(`   Sub-skills: ${subSkillsToFetch.length} selected`));
+    }
     console.log(chalk.white(`   Output: ${outputDir}\n`));
 
     const { confirm } = await inquirer.prompt([
       {
         type: 'confirm',
         name: 'confirm',
-        message: 'Generate skill pack?',
+        message: 'Fetch and save skill pack?',
         default: true
       }
     ]);
@@ -347,31 +299,83 @@ async function main() {
     // Generate files
     const outputPath = path.resolve(outputDir);
     await fs.ensureDir(outputPath);
-
-    // Generate main README
-    await fs.writeFile(
-      path.join(outputPath, 'README.md'),
-      generateMainReadme(stack, subSkills)
-    );
-
-    // Generate individual skill files
-    for (const skill of subSkills) {
-      await fs.writeFile(
-        path.join(outputPath, `${skill}.md`),
-        generateSkillContent(stack, skill)
-      );
+    
+    if (selectedSkill.hasSubSkills) {
+      await fs.ensureDir(path.join(outputPath, selectedSkill.subSkillsPath));
     }
 
-    console.log(chalk.green.bold('\n✅ Skill pack generated successfully!\n'));
-    console.log(chalk.white('Generated files:'));
-    console.log(chalk.gray(`  📄 ${outputDir}/README.md`));
-    subSkills.forEach(skill => {
-      console.log(chalk.gray(`  📄 ${outputDir}/${skill}.md`));
-    });
-    console.log('');
+    console.log(chalk.cyan(`\n📥 Fetching from ${source.name}...\n`));
+
+    const rawBase = `https://raw.githubusercontent.com/${source.repo}/${source.branch}`;
+
+    // Fetch main SKILL.md
+    try {
+      const skillUrl = `${rawBase}/${source.skillsPath}/${skillName}/SKILL.md`;
+      console.log(chalk.gray(`   Fetching SKILL.md...`));
+      const content = await fetchRaw(skillUrl);
+      await fs.writeFile(path.join(outputPath, 'SKILL.md'), content);
+      console.log(chalk.green(`   ✓ SKILL.md`));
+    } catch (error) {
+      console.log(chalk.yellow(`   ⚠ SKILL.md not found (${error.message})`));
+    }
+
+    // Fetch README.md if exists
+    try {
+      const readmeUrl = `${rawBase}/${source.skillsPath}/${skillName}/README.md`;
+      console.log(chalk.gray(`   Fetching README.md...`));
+      const content = await fetchRaw(readmeUrl);
+      await fs.writeFile(path.join(outputPath, 'README_ORIGINAL.md'), content);
+      console.log(chalk.green(`   ✓ README_ORIGINAL.md`));
+    } catch (error) {
+      // Optional file, skip
+    }
+
+    // Fetch sub-skills
+    let successCount = 0;
+    let failCount = 0;
+
+    if (selectedSkill.hasSubSkills && subSkillsToFetch.length > 0) {
+      for (const subSkill of subSkillsToFetch) {
+        try {
+          const subSkillUrl = `${rawBase}/${source.skillsPath}/${skillName}/${selectedSkill.subSkillsPath}/${subSkill}.md`;
+          const content = await fetchRaw(subSkillUrl);
+          await fs.writeFile(
+            path.join(outputPath, selectedSkill.subSkillsPath, `${subSkill}.md`),
+            content
+          );
+          console.log(chalk.green(`   ✓ ${subSkill}.md`));
+          successCount++;
+        } catch (error) {
+          console.log(chalk.red(`   ✗ ${subSkill}.md: ${error.message}`));
+          failCount++;
+        }
+      }
+    }
+
+    // Generate custom README
+    await fs.writeFile(
+      path.join(outputPath, 'README.md'),
+      generateMainReadme(source.name, skillName, subSkillsToFetch, source)
+    );
+
+    console.log(chalk.green.bold(`\n✅ Skill pack fetched successfully!\n`));
+    console.log(chalk.white('Summary:'));
+    console.log(chalk.gray(`  📁 Output: ${outputDir}`));
+    console.log(chalk.gray(`  📄 Main files: SKILL.md, README.md`));
+    if (selectedSkill.hasSubSkills) {
+      console.log(chalk.gray(`  ✓ Sub-skills: ${successCount} fetched`));
+      if (failCount > 0) {
+        console.log(chalk.yellow(`  ✗ Failed: ${failCount} files`));
+      }
+    }
+    console.log(chalk.gray(`\n  💡 Live skills from ${source.name}`));
+    console.log(chalk.gray(`     Re-run anytime to get the latest updates!\n`));
 
   } catch (error) {
     console.error(chalk.red('\n❌ Error:'), error.message);
+    if (error.stack) {
+      console.error(chalk.gray(error.stack));
+    }
     process.exit(1);
   }
 }
