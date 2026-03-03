@@ -11,6 +11,19 @@ const __dirname = path.dirname(__filename);
 
 // Available tech stacks and their sub-skills
 const TECH_STACKS = {
+  'react': {
+    name: 'React',
+    subSkills: [
+      'component-design',
+      'hooks',
+      'performance',
+      'state-management',
+      'testing',
+      'accessibility',
+      'error-handling',
+      'code-organization'
+    ]
+  },
   'react-native': {
     name: 'React Native',
     subSkills: [
@@ -86,6 +99,7 @@ function generateSkillContent(stack, subSkill) {
   ).join(' ');
 
   const docLinks = {
+    'react': 'https://react.dev',
     'react-native': 'https://reactnative.dev/docs/getting-started',
     'nodejs': 'https://nodejs.org/docs/latest/api/',
     'python': 'https://docs.python.org/3/',
