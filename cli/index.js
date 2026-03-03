@@ -1,0 +1,365 @@
+#!/usr/bin/env node
+
+import inquirer from 'inquirer';
+import chalk from 'chalk';
+import fs from 'fs-extra';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Available tech stacks and their sub-skills
+const TECH_STACKS = {
+  'react-native': {
+    name: 'React Native',
+    subSkills: [
+      'performance-optimization',
+      'upgrade-workflows',
+      'debugging',
+      'navigation',
+      'state-management',
+      'testing',
+      'native-modules',
+      'animation'
+    ]
+  },
+  'nodejs': {
+    name: 'Node.js',
+    subSkills: [
+      'api-design',
+      'authentication',
+      'database-integration',
+      'testing',
+      'security',
+      'performance',
+      'error-handling',
+      'deployment'
+    ]
+  },
+  'python': {
+    name: 'Python',
+    subSkills: [
+      'web-development',
+      'data-science',
+      'testing',
+      'async-programming',
+      'packaging',
+      'performance',
+      'security',
+      'api-development'
+    ]
+  },
+  'typescript': {
+    name: 'TypeScript',
+    subSkills: [
+      'type-system',
+      'generics',
+      'decorators',
+      'module-system',
+      'testing',
+      'migration-from-js',
+      'advanced-patterns',
+      'performance'
+    ]
+  },
+  'nextjs': {
+    name: 'Next.js',
+    subSkills: [
+      'app-router',
+      'server-components',
+      'data-fetching',
+      'authentication',
+      'seo',
+      'performance',
+      'deployment',
+      'api-routes'
+    ]
+  }
+};
+
+// Skill template generator
+function generateSkillContent(stack, subSkill) {
+  const stackInfo = TECH_STACKS[stack];
+  const subSkillName = subSkill.split('-').map(word => 
+    word.charAt(0).toUpperCase() + word.slice(1)
+  ).join(' ');
+
+  const docLinks = {
+    'react-native': 'https://reactnative.dev/docs/getting-started',
+    'nodejs': 'https://nodejs.org/docs/latest/api/',
+    'python': 'https://docs.python.org/3/',
+    'typescript': 'https://www.typescriptlang.org/docs/',
+    'nextjs': 'https://nextjs.org/docs'
+  };
+
+  return `# ${stackInfo.name} - ${subSkillName}
+
+## Overview
+
+This skill provides Claude with expert knowledge on ${subSkillName.toLowerCase()} in ${stackInfo.name} applications.
+
+## Purpose
+
+Enable AI assistants to:
+- Apply best practices for ${subSkillName.toLowerCase()}
+- Identify and resolve common issues
+- Provide step-by-step guidance for implementation
+- Suggest optimizations and improvements
+
+## Step-by-Step Instructions
+
+### 1. Initial Assessment
+
+\`\`\`
+Step 1: Analyze the current state
+- Review existing code structure
+- Identify pain points and areas for improvement
+- Document current configuration and dependencies
+\`\`\`
+
+### 2. Planning
+
+\`\`\`
+Step 2: Create an action plan
+- Define clear objectives
+- Break down into manageable tasks
+- Estimate effort and impact
+- Identify dependencies
+\`\`\`
+
+### 3. Implementation
+
+\`\`\`
+Step 3: Execute the plan
+- Follow incremental approach
+- Test after each change
+- Document modifications
+- Review and refactor as needed
+\`\`\`
+
+### 4. Verification
+
+\`\`\`
+Step 4: Validate the implementation
+- Run tests
+- Check performance metrics
+- Verify functionality
+- Get peer review
+\`\`\`
+
+## Best Practices
+
+1. **Start Small**: Begin with minimal changes and iterate
+2. **Document Everything**: Keep track of changes and reasons
+3. **Test Frequently**: Run tests after each significant change
+4. **Monitor Impact**: Measure before and after metrics
+5. **Rollback Plan**: Always have a way to revert changes
+
+## Common Pitfalls
+
+| Pitfall | Solution |
+|---------|----------|
+| Skipping analysis | Always assess current state first |
+| Making too many changes at once | Break into smaller, testable changes |
+| Not testing enough | Implement comprehensive test coverage |
+| Ignoring documentation | Document as you go |
+
+## Code Examples
+
+### Example 1: Basic Implementation
+
+\`\`\`${stack === 'python' ? 'python' : stack === 'typescript' ? 'typescript' : 'javascript'}
+// TODO: Add specific code example for ${subSkillName}
+// This is a placeholder that should be customized based on the specific sub-skill
+\`\`\`
+
+### Example 2: Advanced Pattern
+
+\`\`\`${stack === 'python' ? 'python' : stack === 'typescript' ? 'typescript' : 'javascript'}
+// TODO: Add advanced pattern example for ${subSkillName}
+\`\`\`
+
+## CLI Commands
+
+\`\`\`bash
+# Common commands for ${subSkillName.toLowerCase()}
+# TODO: Add specific CLI commands
+\`\`\`
+
+## References
+
+- [${stackInfo.name} Official Documentation](${docLinks[stack]})
+- [Best Practices Guide](#)
+- [Community Resources](#)
+
+## Checklist
+
+Use this checklist when applying this skill:
+
+- [ ] Assessed current state
+- [ ] Created action plan
+- [ ] Implemented changes incrementally
+- [ ] Added/updated tests
+- [ ] Documented changes
+- [ ] Verified functionality
+- [ ] Measured impact
+- [ ] Got code review
+
+---
+*Generated by Skill Pack Generator CLI*
+`;
+}
+
+// Main README template for a skill pack
+function generateMainReadme(stack, selectedSkills) {
+  const stackInfo = TECH_STACKS[stack];
+  
+  let skillsList = selectedSkills.map(skill => {
+    const skillName = skill.split('-').map(word => 
+      word.charAt(0).toUpperCase() + word.slice(1)
+    ).join(' ');
+    return `| ${skillName} | [View Skill](./${skill}.md) |`;
+  }).join('\n');
+
+  return `# ${stackInfo.name} AI Skill Pack
+
+## Based On
+
+- [Callstack Agent Skills](https://github.com/callstackincubator/agent-skills)
+
+## Purpose
+
+This skill pack enhances AI assistants with ${stackInfo.name} best practices, 
+performance optimization strategies, and architecture guidance.
+
+## Available Skills
+
+| Skill | Reference |
+|-------|-----------|
+${skillsList}
+
+## Usage
+
+Each skill file contains:
+- **Overview**: Purpose and scope of the skill
+- **Step-by-Step Instructions**: Actionable guidance for Claude
+- **Best Practices**: Recommended approaches
+- **Common Pitfalls**: Issues to avoid
+- **Code Examples**: Practical implementations
+- **References**: Links to documentation and resources
+
+## How to Use with Claude
+
+1. Copy the relevant skill content
+2. Provide it as context to Claude
+3. Ask specific questions related to the skill area
+4. Claude will follow the structured guidance
+
+---
+*Generated by Skill Pack Generator CLI*
+`;
+}
+
+async function main() {
+  console.log(chalk.blue.bold('\n🚀 Skill Pack Generator CLI\n'));
+  console.log(chalk.gray('Generate Claude-optimized skill packs for your tech stack\n'));
+
+  try {
+    // Step 1: Select tech stack
+    const { stack } = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'stack',
+        message: 'Select a tech stack:',
+        choices: Object.keys(TECH_STACKS).map(key => ({
+          name: TECH_STACKS[key].name,
+          value: key
+        }))
+      }
+    ]);
+
+    // Step 2: Select sub-skills
+    const { subSkills } = await inquirer.prompt([
+      {
+        type: 'checkbox',
+        name: 'subSkills',
+        message: 'Select sub-skills to include:',
+        choices: TECH_STACKS[stack].subSkills.map(skill => ({
+          name: skill.split('-').map(word => 
+            word.charAt(0).toUpperCase() + word.slice(1)
+          ).join(' '),
+          value: skill,
+          checked: true
+        }))
+      }
+    ]);
+
+    if (subSkills.length === 0) {
+      console.log(chalk.yellow('\n⚠️  No sub-skills selected. Exiting.\n'));
+      return;
+    }
+
+    // Step 3: Output directory
+    const { outputDir } = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'outputDir',
+        message: 'Output directory:',
+        default: `./${stack}`
+      }
+    ]);
+
+    // Step 4: Confirm
+    console.log(chalk.cyan('\n📋 Summary:'));
+    console.log(chalk.white(`   Tech Stack: ${TECH_STACKS[stack].name}`));
+    console.log(chalk.white(`   Sub-skills: ${subSkills.length} selected`));
+    console.log(chalk.white(`   Output: ${outputDir}\n`));
+
+    const { confirm } = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'confirm',
+        message: 'Generate skill pack?',
+        default: true
+      }
+    ]);
+
+    if (!confirm) {
+      console.log(chalk.yellow('\n❌ Cancelled.\n'));
+      return;
+    }
+
+    // Generate files
+    const outputPath = path.resolve(outputDir);
+    await fs.ensureDir(outputPath);
+
+    // Generate main README
+    await fs.writeFile(
+      path.join(outputPath, 'README.md'),
+      generateMainReadme(stack, subSkills)
+    );
+
+    // Generate individual skill files
+    for (const skill of subSkills) {
+      await fs.writeFile(
+        path.join(outputPath, `${skill}.md`),
+        generateSkillContent(stack, skill)
+      );
+    }
+
+    console.log(chalk.green.bold('\n✅ Skill pack generated successfully!\n'));
+    console.log(chalk.white('Generated files:'));
+    console.log(chalk.gray(`  📄 ${outputDir}/README.md`));
+    subSkills.forEach(skill => {
+      console.log(chalk.gray(`  📄 ${outputDir}/${skill}.md`));
+    });
+    console.log('');
+
+  } catch (error) {
+    console.error(chalk.red('\n❌ Error:'), error.message);
+    process.exit(1);
+  }
+}
+
+main();
