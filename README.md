@@ -5,6 +5,41 @@
 A CLI tool that **dynamically discovers and fetches** Claude-optimized skill packs from:
 - 🚀 [Callstack Agent Skills](https://github.com/callstackincubator/agent-skills) — React Native performance & optimization
 - ⚡ [Vercel Agent Skills](https://github.com/vercel-labs/agent-skills) — React & Next.js best practices (40+ rules)
+- 🔧 **Express.js Production Architecture** — Backend best practices with ORM, auth, caching & deployment
+
+## Installation
+
+### Global Installation (Recommended)
+
+```bash
+cd cli
+npm install -g .
+```
+
+Now use `gs` command from anywhere:
+
+```bash
+gs
+```
+
+### Local Usage
+
+```bash
+cd cli
+npm install
+npm start
+```
+
+## Quick Start
+
+```bash
+# After global installation
+cd your-project
+gs
+
+# Select source, skill pack, and sub-skills
+# Files will be generated in your current directory
+```
 
 ## Why This CLI?
 
@@ -14,20 +49,6 @@ Instead of outdated templates, this tool **fetches live content** directly from 
 - ✅ **Real content** — actual best practices, not placeholders
 - ✅ **Multi-source** — Callstack + Vercel (more coming)
 - ✅ **Interactive** — pick exactly what you need
-
-## Quick Start
-
-```bash
-cd cli
-npm install
-npm start
-```
-
-Or run directly:
-
-```bash
-node cli/index.js
-```
 
 ## Available Sources
 
@@ -59,6 +80,25 @@ From the creators of Next.js & Vercel
 
 **Blog:** [Introducing React Best Practices](https://vercel.com/blog/introducing-react-best-practices)
 
+### 🔧 Express.js Production Architecture
+Production-ready backend architecture templates
+
+**Features:**
+- **ORM-aware database selection** — Choose ORM first, get compatible databases
+- **Multiple ORMs** — Mongoose, Prisma, TypeORM, Sequelize, or raw drivers
+- **Databases** — PostgreSQL, MongoDB, MySQL, SQLite, MariaDB, TimescaleDB
+- **Authentication** — JWT, Session-based
+- **Caching** — Redis, Memcached, In-memory
+- **Real-time** — WebSockets (Socket.io), Server-Sent Events
+- **Deployment** — Docker/Kubernetes, AWS, VPS, Serverless
+
+**Smart Selection Flow:**
+1. Select ORM (e.g., Prisma)
+2. Only compatible databases shown (PostgreSQL, MySQL, MongoDB, SQLite)
+3. Choose multiple databases, auth methods, caching strategies
+4. Pick deployment targets
+5. Get customized skill pack with only what you need
+
 ## How It Works
 
 1. **Select source** — Callstack or Vercel
@@ -70,9 +110,10 @@ From the creators of Next.js & Vercel
 
 ## Example Usage
 
+### Frontend Skills (Vercel)
 ```bash
-cd cli
-npm start
+cd your-project
+gs
 
 # 1. Select "Vercel Agent Skills"
 # 2. Choose "React Best Practices"
@@ -84,9 +125,28 @@ npm start
 # - react-best-practices/rules/*.md (40+ detailed rules)
 ```
 
+### Backend Skills (Express.js)
+```bash
+cd your-backend-project
+gs
+
+# 1. Select "Express.js Production Architecture"
+# 2. Choose ORM: Prisma
+# 3. Select databases: PostgreSQL, MongoDB
+# 4. Select auth: JWT
+# 5. Select caching: Redis
+# 6. Select real-time: WebSockets
+# 7. Select deployment: Docker/Kubernetes
+# 8. Output to ./expressjs-skill-pack
+
+# Now use:
+# - expressjs-skill-pack/SKILL.md (overview)
+# - expressjs-skill-pack/references/*.md (detailed guides)
+```
+
 ## Use with Claude
 
-1. Run the CLI to fetch a skill pack
+1. Run `gs` to fetch a skill pack
 2. Navigate to output directory
 3. Copy relevant `.md` files
 4. Provide as context to Claude (or any AI coding assistant)
@@ -94,10 +154,9 @@ npm start
 
 ## Updates
 
-Re-run the CLI anytime to fetch the latest:
+Re-run `gs` anytime to fetch the latest:
 ```bash
-cd cli
-npm start
+gs
 ```
 
 The CLI always pulls from the `main` branch, so you get the freshest content.

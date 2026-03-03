@@ -1,11 +1,11 @@
 {
-  "name": "skill-pack-generator",
+  "name": "global-ai-skills",
   "version": "1.0.0",
-  "description": "CLI tool to generate Claude-optimized skill packs",
+  "description": "CLI tool to fetch AI agent skills from top repositories",
   "type": "module",
   "main": "index.js",
   "bin": {
-    "skill-gen": "./index.js"
+    "gs": "./index.js"
   },
   "scripts": {
     "start": "node index.js"
