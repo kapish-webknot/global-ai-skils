@@ -80,6 +80,41 @@ From the creators of Next.js & Vercel
 
 **Blog:** [Introducing React Best Practices](https://vercel.com/blog/introducing-react-best-practices)
 
+### 🎯 Vercel Next.js Skills
+**NEW!** Next.js specific development patterns
+
+**Repo:** [vercel-labs/next-skills](https://github.com/vercel-labs/next-skills)
+
+### 🔧 Express.js Production Architecture
+**NEW!** Custom template-based skill generator with **hierarchical dependencies**
+
+**Features:**
+- **ORM-aware database selection** — Pick Mongoose, Prisma, TypeORM, Sequelize, or raw drivers
+- **Filtered database options** — Only shows compatible DBs based on ORM choice
+- **Multiple selections** — Auth, caching, deployment targets
+- **Generated skill packs** — Custom combinations based on your stack
+
+**Example Flow:**
+```
+1. Select ORM: Prisma
+2. Databases: ✓ PostgreSQL ✓ MongoDB (filtered by Prisma support)
+3. Auth: ✓ JWT ✓ OAuth2
+4. Caching: ✓ Redis
+5. Real-time: WebSockets
+6. Deployment: ✓ Docker/K8s ✓ AWS
+→ Generates 15+ skill files tailored to YOUR stack
+```
+
+**ORM → Database Compatibility Matrix:**
+
+| ORM | PostgreSQL | MongoDB | MySQL | SQLite | MariaDB | SQL Server | CockroachDB | TimeSeriesDB |
+|-----|:----------:|:-------:|:-----:|:------:|:-------:|:----------:|:-----------:|:------------:|
+| Mongoose | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Prisma | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ |
+| TypeORM | ✅ | ✅* | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Sequelize | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| None (Raw) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+
 ### 🔧 Express.js Production Architecture
 Production-ready backend architecture templates
 

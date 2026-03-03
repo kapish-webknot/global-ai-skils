@@ -10,6 +10,15 @@ import https from 'https';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// ORM → Database compatibility matrix
+const ORM_DATABASE_MAP = {
+  'mongoose': ['mongodb'],
+  'prisma': ['postgresql', 'mongodb', 'mysql', 'sqlite', 'cockroachdb'],
+  'typeorm': ['postgresql', 'mongodb', 'mysql', 'sqlite', 'mariadb'],
+  'sequelize': ['postgresql', 'mysql', 'mariadb', 'sqlite', 'sqlserver'],
+  'none': ['postgresql', 'mongodb', 'mysql', 'sqlite', 'mariadb', 'sqlserver', 'cockroachdb', 'timeseries']
+};
+
 // Available skill sources
 const SOURCES = {
   callstack: {
@@ -17,7 +26,7 @@ const SOURCES = {
     repo: 'callstackincubator/agent-skills',
     branch: 'main',
     url: 'https://github.com/callstackincubator/agent-skills',
-    description: 'React Native performance & optimization (from The Ultimate Guide)',
+    description: 'React Native performance & optimization',
     skillsPath: 'skills',
     type: 'github'
   },
@@ -30,10 +39,27 @@ const SOURCES = {
     skillsPath: 'skills',
     type: 'github'
   },
+  'next-skills': {
+    name: 'Vercel Next.js Skills',
+    repo: 'vercel-labs/next-skills',
+    branch: 'main',
+    url: 'https://github.com/vercel-labs/next-skills',
+    description: 'Next.js app development patterns',
+    skillsPath: 'skills',
+    type: 'github'
+  },
   expressjs: {
     name: 'Express.js Production Architecture',
-    description: 'Backend best practices with ORM, auth, caching & deployment',
-    type: 'local'
+    description: 'Backend best practices: ORM, auth, caching, deployment',
+    type: 'template',
+    categories: {
+      orm: ['mongoose', 'prisma', 'typeorm', 'sequelize', 'none'],
+      database: ['postgresql', 'mongodb', 'mysql', 'sqlite', 'mariadb', 'sqlserver', 'cockroachdb', 'timeseries'],
+      auth: ['jwt', 'session-based', 'oauth2', 'passport'],
+      caching: ['redis', 'memcached', 'in-memory', 'none'],
+      realtime: ['websockets', 'sse', 'none'],
+      deployment: ['docker-kubernetes', 'aws', 'gcp', 'azure', 'vps-pm2', 'serverless']
+    }
   }
 };
 
@@ -134,198 +160,426 @@ async function discoverSkills(source) {
   }
 }
 
-// Generate main README
-function generateMainReadme(sourceName, skillName, selectedSubSkills, source) {
-  const hasSubSkills = selectedSubSkills && selectedSubSkills.length > 0;
-  
-  let skillsList = '';
-  if (hasSubSkills) {
-    const subSkillsPath = selectedSubSkills[0].includes('references/') ? 'references' : 'rules';
-    skillsList = selectedSubSkills.map(skill => {
-      const displayName = skill.split('-').map(word => 
-        word.charAt(0).toUpperCase() + word.slice(1)
-      ).join(' ');
-      return `| ${displayName} | [View Skill](./${subSkillsPath}/${skill}.md) |`;
-    }).join('\n');
+// Generate Express.js template content
+function generateExpressTemplate(category, option) {
+  const templates = {
+    'orm-mongoose': `# Mongoose (MongoDB ODM)
+
+## Overview
+Mongoose provides schema-based MongoDB modeling for Node.js applications.
+
+## Installation
+\`\`\`bash
+npm install mongoose
+\`\`\`
+
+## Connection Setup
+\`\`\`javascript
+import mongoose from 'mongoose';
+
+await mongoose.connect(process.env.MONGODB_URI, {
+  maxPoolSize: 10,
+  serverSelectionTimeoutMS: 5000
+});
+\`\`\`
+
+## Schema Definition
+\`\`\`javascript
+const userSchema = new mongoose.Schema({
+  email: { type: String, required: true, unique: true, lowercase: true },
+  name: { type: String, required: true },
+  createdAt: { type: Date, default: Date.now }
+}, { timestamps: true });
+
+export const User = mongoose.model('User', userSchema);
+\`\`\`
+
+## Best Practices
+- Use lean() for read-only queries
+- Index frequently queried fields
+- Use virtuals for computed properties
+- Enable timestamps for audit trails
+`,
+    'orm-prisma': `# Prisma ORM
+
+## Overview
+Next-generation TypeScript-first ORM with auto-generated types.
+
+## Installation
+\`\`\`bash
+npm install prisma @prisma/client
+npx prisma init
+\`\`\`
+
+## Schema (schema.prisma)
+\`\`\`prisma
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+\`\`\`
+
+## Usage
+\`\`\`javascript
+import { PrismaClient } from '@prisma/client';
+const prisma = new PrismaClient();
+
+const user = await prisma.user.create({
+  data: { email: 'test@example.com', name: 'Test' }
+});
+\`\`\`
+
+## Best Practices
+- Run migrations in CI/CD
+- Use connection pooling (PgBouncer for PostgreSQL)
+- Enable query logging in development
+- Use select to fetch only needed fields
+`,
+    'auth-jwt': `# JWT Authentication
+
+## Installation
+\`\`\`bash
+npm install jsonwebtoken bcrypt
+\`\`\`
+
+## Token Generation
+\`\`\`javascript
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcrypt';
+
+async function login(email, password) {
+  const user = await User.findOne({ email });
+  if (!user || !await bcrypt.compare(password, user.password)) {
+    throw new Error('Invalid credentials');
   }
+  
+  const token = jwt.sign(
+    { userId: user.id, email: user.email },
+    process.env.JWT_SECRET,
+    { expiresIn: '7d' }
+  );
+  
+  return { token, user };
+}
+\`\`\`
 
-  return `# ${skillName.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')} - AI Skill Pack
+## Middleware
+\`\`\`javascript
+export function authenticateJWT(req, res, next) {
+  const token = req.headers.authorization?.split(' ')[1];
+  
+  if (!token) {
+    return res.status(401).json({ error: 'No token provided' });
+  }
+  
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    res.status(403).json({ error: 'Invalid token' });
+  }
+}
+\`\`\`
 
-## Source
+## Best Practices
+- Use strong JWT_SECRET (min 256 bits)
+- Set appropriate expiration times
+- Implement refresh tokens for long sessions
+- Store tokens in httpOnly cookies (not localStorage)
+`,
+    'caching-redis': `# Redis Caching
 
-Fetched from **${source.name}**  
-${source.url}
+## Installation
+\`\`\`bash
+npm install redis
+\`\`\`
 
-**Always up-to-date** — re-run the CLI anytime to fetch the latest.
+## Setup
+\`\`\`javascript
+import { createClient } from 'redis';
 
-## Description
+const redis = createClient({
+  url: process.env.REDIS_URL,
+  socket: { reconnectStrategy: (retries) => Math.min(retries * 50, 500) }
+});
 
-${source.description}
+await redis.connect();
+\`\`\`
 
-${hasSubSkills ? `## Available Skills
+## Cache Middleware
+\`\`\`javascript
+export function cacheMiddleware(ttl = 300) {
+  return async (req, res, next) => {
+    const key = \`cache:\${req.method}:\${req.originalUrl}\`;
+    
+    const cached = await redis.get(key);
+    if (cached) {
+      return res.json(JSON.parse(cached));
+    }
+    
+    const originalJson = res.json.bind(res);
+    res.json = (data) => {
+      redis.setEx(key, ttl, JSON.stringify(data));
+      return originalJson(data);
+    };
+    
+    next();
+  };
+}
+\`\`\`
 
-| Skill | Reference |
-|-------|-----------|
-${skillsList}
+## Best Practices
+- Set appropriate TTLs per endpoint
+- Use key namespaces (e.g., \`user:123\`, \`post:456\`)
+- Implement cache invalidation strategies
+- Monitor cache hit rates
+`,
+    'deployment-docker-kubernetes': `# Docker & Kubernetes Deployment
 
-## Main Skill File
+## Dockerfile
+\`\`\`dockerfile
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
 
-See [SKILL.md](./SKILL.md) for the main quick reference.
-` : ''}
+FROM node:20-alpine
+WORKDIR /app
+COPY --from=builder /app/node_modules ./node_modules
+COPY . .
+EXPOSE 3000
+CMD ["node", "index.js"]
+\`\`\`
+
+## Kubernetes Deployment
+\`\`\`yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: express-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: express-api
+  template:
+    metadata:
+      labels:
+        app: express-api
+    spec:
+      containers:
+      - name: api
+        image: your-registry/express-api:latest
+        ports:
+        - containerPort: 3000
+        env:
+        - name: NODE_ENV
+          value: "production"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 30
+\`\`\`
+
+## Best Practices
+- Use multi-stage builds
+- Run as non-root user
+- Set resource limits
+- Implement health checks
+- Use secrets for sensitive data
+`
+  };
+
+  const key = `${category}-${option}`;
+  return templates[key] || `# ${option}\n\nSkill content for ${category}/${option} coming soon.\n`;
+}
+
+// Generate main README for template-based skills
+function generateExpressReadme(selections) {
+  const { orm, database, auth, caching, realtime, deployment } = selections;
+  
+  return `# Express.js Production Architecture - Skill Pack
+
+## Your Selected Stack
+
+### ORM/ODM
+${orm.map(o => `- ${o.charAt(0).toUpperCase() + o.slice(1)}`).join('\n')}
+
+### Databases
+${database.map(d => `- ${d.charAt(0).toUpperCase() + d.slice(1)}`).join('\n')}
+
+### Authentication
+${auth.map(a => `- ${a.toUpperCase()}`).join('\n')}
+
+### Caching
+${caching.map(c => `- ${c.charAt(0).toUpperCase() + c.slice(1)}`).join('\n')}
+
+### Real-time
+${realtime.map(r => `- ${r.toUpperCase()}`).join('\n')}
+
+### Deployment
+${deployment.map(d => `- ${d.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}`).join('\n')}
+
+## Skills Included
+
+This pack contains production-ready patterns for your Express.js stack.
+
+### Base Skills (Always Included)
+- Project structure & organization
+- API design & versioning
+- Error handling & logging
+- Security & validation
+- Testing & coverage
+- Monitoring & observability
+
+### Generated Skills
+All skills based on your selections above.
 
 ## Usage
 
-Provide these files as context to Claude or any AI coding assistant:
-1. Copy the relevant skill content
-2. Provide it as context
-3. Ask specific questions related to the skill area
+1. Copy relevant skill files as context for Claude
+2. Ask specific questions about implementation
+3. Use code examples as starting templates
+4. Adapt to your specific requirements
 
-## Credits
+## Source
 
-From [${source.name}](${source.url})
+Generated by global-ai-skills CLI  
+https://github.com/kapish-webknot/global-ai-skils
 
 ---
-*Fetched via global-ai-skills CLI*
+*Fetch the latest templates anytime by re-running the CLI*
 `;
 }
 
-// ORM to Database compatibility
-const ORM_DB_COMPAT = {
-  mongoose: ['mongodb'],
-  prisma: ['postgresql', 'mongodb', 'mysql', 'sqlite'],
-  typeorm: ['postgresql', 'mongodb', 'mysql', 'mariadb', 'sqlite'],
-  sequelize: ['postgresql', 'mysql', 'mariadb', 'sqlite'],
-  none: ['postgresql', 'mongodb', 'mysql', 'mariadb', 'sqlite', 'timeseries']
-};
+// Handle Express.js template generation
+async function handleExpressJS(outputDir) {
+  console.log(chalk.cyan('\n📋 Configure your Express.js stack:\n'));
 
-// Handle Express.js local templates
-async function handleExpressJS() {
-  const templatesPath = path.join(__dirname, 'templates', 'expressjs');
+  // 1. Select ORM
+  const { orm } = await inquirer.prompt([{
+    type: 'list',
+    name: 'orm',
+    message: 'Select ORM/ODM:',
+    choices: [
+      { name: 'Mongoose (MongoDB only)', value: 'mongoose' },
+      { name: 'Prisma (PostgreSQL, MySQL, MongoDB, SQLite, CockroachDB)', value: 'prisma' },
+      { name: 'TypeORM (PostgreSQL, MySQL, MariaDB, SQLite, MongoDB)', value: 'typeorm' },
+      { name: 'Sequelize (PostgreSQL, MySQL, MariaDB, SQLite, SQL Server)', value: 'sequelize' },
+      { name: 'None (Raw Database Drivers)', value: 'none' }
+    ]
+  }]);
 
-  // Step 1: Select ORM
-  const { orm } = await inquirer.prompt([
-    {
-      type: 'list',
-      name: 'orm',
-      message: 'Select ORM/ODM:',
-      choices: [
-        { name: 'Mongoose (MongoDB only)', value: 'mongoose' },
-        { name: 'Prisma (PostgreSQL, MySQL, MongoDB, SQLite)', value: 'prisma' },
-        { name: 'TypeORM (PostgreSQL, MySQL, MariaDB, SQLite, MongoDB)', value: 'typeorm' },
-        { name: 'Sequelize (PostgreSQL, MySQL, MariaDB, SQLite)', value: 'sequelize' },
-        { name: 'None (Raw drivers)', value: 'none' }
-      ]
-    }
-  ]);
+  // 2. Select Database(s) - filtered by ORM
+  const availableDatabases = ORM_DATABASE_MAP[orm];
+  const { database } = await inquirer.prompt([{
+    type: 'checkbox',
+    name: 'database',
+    message: 'Select Database(s):',
+    choices: availableDatabases.map(db => ({
+      name: db.charAt(0).toUpperCase() + db.slice(1),
+      value: db,
+      checked: availableDatabases.length === 1
+    }))
+  }]);
 
-  // Step 2: Select databases (filtered by ORM)
-  const availableDbs = ORM_DB_COMPAT[orm];
-  const { databases } = await inquirer.prompt([
-    {
-      type: 'checkbox',
-      name: 'databases',
-      message: 'Select database(s):',
-      choices: [
-        { name: 'PostgreSQL', value: 'postgresql', disabled: !availableDbs.includes('postgresql') },
-        { name: 'MongoDB', value: 'mongodb', disabled: !availableDbs.includes('mongodb') },
-        { name: 'MySQL', value: 'mysql', disabled: !availableDbs.includes('mysql') },
-        { name: 'SQLite', value: 'sqlite', disabled: !availableDbs.includes('sqlite') },
-        { name: 'MariaDB', value: 'mariadb', disabled: !availableDbs.includes('mariadb') },
-        { name: 'TimeSeriesDB', value: 'timeseries', disabled: !availableDbs.includes('timeseries') }
-      ].filter(choice => !choice.disabled)
-    }
-  ]);
-
-  if (databases.length === 0) {
+  if (database.length === 0) {
     console.log(chalk.yellow('\n⚠️  No databases selected. Exiting.\n'));
     return;
   }
 
-  // Step 3: Select auth methods
-  const { auth } = await inquirer.prompt([
-    {
-      type: 'checkbox',
-      name: 'auth',
-      message: 'Select authentication method(s):',
-      choices: [
-        { name: 'JWT', value: 'jwt', checked: true },
-        { name: 'Session-based', value: 'session' }
-      ]
-    }
-  ]);
+  // 3. Select Authentication
+  const { auth } = await inquirer.prompt([{
+    type: 'checkbox',
+    name: 'auth',
+    message: 'Select Authentication method(s):',
+    choices: [
+      { name: 'JWT (JSON Web Tokens)', value: 'jwt', checked: true },
+      { name: 'Session-based (Express Session)', value: 'session-based' },
+      { name: 'OAuth 2.0', value: 'oauth2' },
+      { name: 'Passport.js', value: 'passport' }
+    ]
+  }]);
 
-  // Step 4: Select caching
-  const { caching } = await inquirer.prompt([
-    {
-      type: 'checkbox',
-      name: 'caching',
-      message: 'Select caching strategy:',
-      choices: [
-        { name: 'Redis', value: 'redis', checked: true },
-        { name: 'Memcached', value: 'memcached' },
-        { name: 'In-memory', value: 'inmemory' },
-        { name: 'None', value: 'none' }
-      ]
-    }
-  ]);
+  // 4. Select Caching
+  const { caching } = await inquirer.prompt([{
+    type: 'checkbox',
+    name: 'caching',
+    message: 'Select Caching layer(s):',
+    choices: [
+      { name: 'Redis', value: 'redis', checked: true },
+      { name: 'Memcached', value: 'memcached' },
+      { name: 'In-memory (Node.js Map)', value: 'in-memory' },
+      { name: 'None', value: 'none' }
+    ]
+  }]);
 
-  // Step 5: Select real-time
-  const { realtime } = await inquirer.prompt([
-    {
-      type: 'list',
-      name: 'realtime',
-      message: 'Select real-time communication:',
-      choices: [
-        { name: 'WebSockets (Socket.io)', value: 'websockets' },
-        { name: 'Server-Sent Events (SSE)', value: 'sse' },
-        { name: 'None (REST only)', value: 'none' }
-      ]
-    }
-  ]);
+  // 5. Select Real-time
+  const { realtime } = await inquirer.prompt([{
+    type: 'list',
+    name: 'realtime',
+    message: 'Select Real-time communication:',
+    choices: [
+      { name: 'WebSockets (Socket.io)', value: 'websockets' },
+      { name: 'Server-Sent Events (SSE)', value: 'sse' },
+      { name: 'None (REST only)', value: 'none' }
+    ]
+  }]);
 
-  // Step 6: Select deployment
-  const { deployment } = await inquirer.prompt([
-    {
-      type: 'checkbox',
-      name: 'deployment',
-      message: 'Select deployment target(s):',
-      choices: [
-        { name: 'Docker/Kubernetes', value: 'docker', checked: true },
-        { name: 'AWS (Lambda, ECS, Fargate)', value: 'aws' },
-        { name: 'Traditional VPS (PM2, Nginx)', value: 'vps' },
-        { name: 'Serverless', value: 'serverless' }
-      ]
-    }
-  ]);
+  // 6. Select Deployment
+  const { deployment } = await inquirer.prompt([{
+    type: 'checkbox',
+    name: 'deployment',
+    message: 'Select Deployment target(s):',
+    choices: [
+      { name: 'Docker & Kubernetes', value: 'docker-kubernetes', checked: true },
+      { name: 'AWS (Lambda, ECS, Fargate)', value: 'aws' },
+      { name: 'GCP (Cloud Run, GKE)', value: 'gcp' },
+      { name: 'Azure (AKS, Container Apps)', value: 'azure' },
+      { name: 'Traditional VPS (PM2, Nginx)', value: 'vps-pm2' },
+      { name: 'Serverless (AWS Lambda, Vercel)', value: 'serverless' }
+    ]
+  }]);
 
-  // Step 7: Output directory
-  const { outputDir } = await inquirer.prompt([
-    {
-      type: 'input',
-      name: 'outputDir',
-      message: 'Output directory:',
-      default: './expressjs-skill-pack'
-    }
-  ]);
+  const selections = { orm: [orm], database, auth, caching, realtime: [realtime], deployment };
 
-  // Step 8: Confirm
+  // Confirm
   console.log(chalk.cyan('\n📋 Summary:'));
   console.log(chalk.white(`   ORM: ${orm}`));
-  console.log(chalk.white(`   Databases: ${databases.join(', ')}`));
+  console.log(chalk.white(`   Databases: ${database.join(', ')}`));
   console.log(chalk.white(`   Auth: ${auth.join(', ')}`));
   console.log(chalk.white(`   Caching: ${caching.join(', ')}`));
   console.log(chalk.white(`   Real-time: ${realtime}`));
   console.log(chalk.white(`   Deployment: ${deployment.join(', ')}`));
   console.log(chalk.white(`   Output: ${outputDir}\n`));
 
-  const { confirm } = await inquirer.prompt([
-    {
-      type: 'confirm',
-      name: 'confirm',
-      message: 'Generate skill pack?',
-      default: true
-    }
-  ]);
+  const { confirm } = await inquirer.prompt([{
+    type: 'confirm',
+    name: 'confirm',
+    message: 'Generate skill pack?',
+    default: true
+  }]);
 
   if (!confirm) {
     console.log(chalk.yellow('\n❌ Cancelled.\n'));
@@ -333,317 +587,237 @@ async function handleExpressJS() {
   }
 
   // Generate files
-  const outputPath = path.resolve(process.cwd(), outputDir);
+  const outputPath = path.resolve(outputDir);
+  await fs.ensureDir(outputPath);
   await fs.ensureDir(path.join(outputPath, 'references'));
 
   console.log(chalk.cyan('\n📦 Generating skill pack...\n'));
 
-  // Copy main SKILL.md
-  await fs.copy(
-    path.join(templatesPath, 'SKILL.md'),
-    path.join(outputPath, 'SKILL.md')
+  // Generate README
+  await fs.writeFile(
+    path.join(outputPath, 'README.md'),
+    generateExpressReadme(selections)
   );
-  console.log(chalk.green('   ✓ SKILL.md'));
+  console.log(chalk.green('   ✓ README.md'));
 
-  // Copy base files
-  const baseFiles = await fs.readdir(path.join(templatesPath, 'base'));
-  for (const file of baseFiles) {
-    await fs.copy(
-      path.join(templatesPath, 'base', file),
-      path.join(outputPath, 'references', file)
+  // Generate base skills (always included)
+  const baseSkills = [
+    'project-structure',
+    'api-design-versioning',
+    'error-handling-logging',
+    'security-validation',
+    'testing-coverage',
+    'monitoring-observability'
+  ];
+
+  for (const skill of baseSkills) {
+    await fs.writeFile(
+      path.join(outputPath, 'references', `${skill}.md`),
+      `# ${skill.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}\n\nBase skill content coming soon.\n`
     );
-    console.log(chalk.green(`   ✓ ${file}`));
   }
 
-  // Copy ORM file
-  if (orm !== 'none') {
-    await fs.copy(
-      path.join(templatesPath, 'orm', `${orm}.md`),
-      path.join(outputPath, 'references', `orm-${orm}.md`)
+  // Generate ORM skills
+  for (const o of [orm]) {
+    const content = generateExpressTemplate('orm', o);
+    await fs.writeFile(
+      path.join(outputPath, 'references', `orm-${o}.md`),
+      content
     );
-    console.log(chalk.green(`   ✓ orm-${orm}.md`));
+    console.log(chalk.green(`   ✓ orm-${o}.md`));
   }
 
-  // Copy database files
-  for (const db of databases) {
-    const dbFile = path.join(templatesPath, 'database', `${db}.md`);
-    if (await fs.pathExists(dbFile)) {
-      await fs.copy(dbFile, path.join(outputPath, 'references', `database-${db}.md`));
-      console.log(chalk.green(`   ✓ database-${db}.md`));
+  // Generate auth skills
+  for (const a of auth) {
+    const content = generateExpressTemplate('auth', a);
+    await fs.writeFile(
+      path.join(outputPath, 'references', `auth-${a}.md`),
+      content
+    );
+    console.log(chalk.green(`   ✓ auth-${a}.md`));
+  }
+
+  // Generate caching skills
+  for (const c of caching) {
+    const content = generateExpressTemplate('caching', c);
+    await fs.writeFile(
+      path.join(outputPath, 'references', `caching-${c}.md`),
+      content
+    );
+    console.log(chalk.green(`   ✓ caching-${c}.md`));
+  }
+
+  // Generate deployment skills
+  for (const d of deployment) {
+    const content = generateExpressTemplate('deployment', d);
+    await fs.writeFile(
+      path.join(outputPath, 'references', `deployment-${d}.md`),
+      content
+    );
+    console.log(chalk.green(`   ✓ deployment-${d}.md`));
+  }
+
+  console.log(chalk.green.bold(`\n✅ Express.js skill pack generated!\n`));
+  console.log(chalk.white('Summary:'));
+  console.log(chalk.gray(`  📁 Output: ${outputDir}`));
+  console.log(chalk.gray(`  📄 Base skills: ${baseSkills.length} files`));
+  console.log(chalk.gray(`  📄 Stack-specific: ${1 + auth.length + caching.length + deployment.length} files\n`));
+}
+
+// Handle GitHub-based sources
+async function handleGitHubSource(source, outputDir) {
+  console.log(chalk.cyan(`\n🔍 Discovering skills from ${source.name}...\n`));
+
+  const availableSkills = await discoverSkills(source);
+
+  if (availableSkills.length === 0) {
+    console.log(chalk.yellow('⚠️  No skills found. Exiting.\n'));
+    return;
+  }
+
+  const { skillName } = await inquirer.prompt([{
+    type: 'list',
+    name: 'skillName',
+    message: 'Select a skill pack:',
+    choices: availableSkills.map(skill => ({
+      name: `${skill.displayName}${skill.hasSubSkills ? ` (${skill.subSkills.length} sub-skills)` : ''}`,
+      value: skill.name,
+      short: skill.displayName
+    }))
+  }]);
+
+  const selectedSkill = availableSkills.find(s => s.name === skillName);
+
+  let subSkillsToFetch = [];
+  if (selectedSkill.hasSubSkills) {
+    const { subSkills } = await inquirer.prompt([{
+      type: 'checkbox',
+      name: 'subSkills',
+      message: 'Select sub-skills to fetch:',
+      choices: [
+        { name: 'Select All', value: '__all__', checked: true },
+        new inquirer.Separator(),
+        ...selectedSkill.subSkills.map(skill => ({
+          name: skill.split('-').map(word => 
+            word.charAt(0).toUpperCase() + word.slice(1)
+          ).join(' '),
+          value: skill,
+          checked: false
+        }))
+      ]
+    }]);
+
+    subSkillsToFetch = subSkills.includes('__all__') ? selectedSkill.subSkills : subSkills;
+
+    if (subSkillsToFetch.length === 0) {
+      console.log(chalk.yellow('\n⚠️  No sub-skills selected. Exiting.\n'));
+      return;
     }
   }
 
-  // Copy auth files
-  for (const authMethod of auth) {
-    const authFile = path.join(templatesPath, 'auth', `${authMethod}.md`);
-    if (await fs.pathExists(authFile)) {
-      await fs.copy(authFile, path.join(outputPath, 'references', `auth-${authMethod}.md`));
-      console.log(chalk.green(`   ✓ auth-${authMethod}.md`));
-    }
+  console.log(chalk.cyan('\n📋 Summary:'));
+  console.log(chalk.white(`   Source: ${source.name}`));
+  console.log(chalk.white(`   Skill: ${selectedSkill.displayName}`));
+  if (selectedSkill.hasSubSkills) {
+    console.log(chalk.white(`   Sub-skills: ${subSkillsToFetch.length} selected`));
+  }
+  console.log(chalk.white(`   Output: ${outputDir}\n`));
+
+  const { confirm } = await inquirer.prompt([{
+    type: 'confirm',
+    name: 'confirm',
+    message: 'Fetch and save?',
+    default: true
+  }]);
+
+  if (!confirm) {
+    console.log(chalk.yellow('\n❌ Cancelled.\n'));
+    return;
   }
 
-  // Copy caching files
-  for (const cache of caching) {
-    if (cache !== 'none') {
-      const cacheFile = path.join(templatesPath, 'caching', `${cache}.md`);
-      if (await fs.pathExists(cacheFile)) {
-        await fs.copy(cacheFile, path.join(outputPath, 'references', `caching-${cache}.md`));
-        console.log(chalk.green(`   ✓ caching-${cache}.md`));
+  const outputPath = path.resolve(outputDir);
+  await fs.ensureDir(outputPath);
+  if (selectedSkill.hasSubSkills) {
+    await fs.ensureDir(path.join(outputPath, selectedSkill.subSkillsPath));
+  }
+
+  console.log(chalk.cyan(`\n📥 Fetching from ${source.name}...\n`));
+
+  const rawBase = `https://raw.githubusercontent.com/${source.repo}/${source.branch}`;
+
+  // Fetch main SKILL.md
+  try {
+    const skillUrl = `${rawBase}/${source.skillsPath}/${skillName}/SKILL.md`;
+    const content = await fetchRaw(skillUrl);
+    await fs.writeFile(path.join(outputPath, 'SKILL.md'), content);
+    console.log(chalk.green(`   ✓ SKILL.md`));
+  } catch (error) {
+    console.log(chalk.yellow(`   ⚠ SKILL.md not found`));
+  }
+
+  // Fetch sub-skills
+  let successCount = 0;
+  if (selectedSkill.hasSubSkills && subSkillsToFetch.length > 0) {
+    for (const subSkill of subSkillsToFetch) {
+      try {
+        const url = `${rawBase}/${source.skillsPath}/${skillName}/${selectedSkill.subSkillsPath}/${subSkill}.md`;
+        const content = await fetchRaw(url);
+        await fs.writeFile(
+          path.join(outputPath, selectedSkill.subSkillsPath, `${subSkill}.md`),
+          content
+        );
+        console.log(chalk.green(`   ✓ ${subSkill}.md`));
+        successCount++;
+      } catch (error) {
+        console.log(chalk.red(`   ✗ ${subSkill}.md: ${error.message}`));
       }
-    }
-  }
-
-  // Copy realtime file
-  if (realtime !== 'none') {
-    const rtFile = path.join(templatesPath, 'realtime', `${realtime}.md`);
-    if (await fs.pathExists(rtFile)) {
-      await fs.copy(rtFile, path.join(outputPath, 'references', `realtime-${realtime}.md`));
-      console.log(chalk.green(`   ✓ realtime-${realtime}.md`));
-    }
-  }
-
-  // Copy deployment files
-  for (const deploy of deployment) {
-    const deployFile = path.join(templatesPath, 'deployment', `${deploy}.md`);
-    if (await fs.pathExists(deployFile)) {
-      await fs.copy(deployFile, path.join(outputPath, 'references', `deployment-${deploy}.md`));
-      console.log(chalk.green(`   ✓ deployment-${deploy}.md`));
     }
   }
 
   // Generate README
-  const readme = `# Express.js Production Architecture - Skill Pack
+  await fs.writeFile(
+    path.join(outputPath, 'README.md'),
+    `# ${selectedSkill.displayName}\n\nFetched from ${source.name}\n${source.url}\n`
+  );
 
-## Configuration
-
-- **ORM**: ${orm}
-- **Databases**: ${databases.join(', ')}
-- **Authentication**: ${auth.join(', ')}
-- **Caching**: ${caching.join(', ')}
-- **Real-time**: ${realtime}
-- **Deployment**: ${deployment.join(', ')}
-
-## Files
-
-- [SKILL.md](./SKILL.md) - Main overview
-- [references/](./references/) - Detailed guides
-
-## Usage
-
-Provide relevant files to Claude when building your Express.js backend.
-
----
-*Generated by global-ai-skills CLI*
-`;
-
-  await fs.writeFile(path.join(outputPath, 'README.md'), readme);
-
-  console.log(chalk.green.bold('\n✅ Skill pack generated successfully!\n'));
-  console.log(chalk.white('Summary:'));
-  console.log(chalk.gray(`  📁 Output: ${outputDir}`));
-  console.log(chalk.gray(`  📄 Files: SKILL.md, README.md, references/\n`));
+  console.log(chalk.green.bold(`\n✅ Skill pack fetched!\n`));
+  console.log(chalk.gray(`  📁 ${outputDir}`));
+  console.log(chalk.gray(`  ✓ ${successCount} skills\n`));
 }
 
 async function main() {
   console.log(chalk.blue.bold('\n🚀 AI Skills Fetcher CLI\n'));
-  console.log(chalk.gray('Fetch live skill packs from Callstack & Vercel\n'));
+  console.log(chalk.gray('Fetch live skill packs from Callstack, Vercel & custom templates\n'));
 
   try {
-    // Step 1: Select source
-    const { sourceKey } = await inquirer.prompt([
-      {
-        type: 'list',
-        name: 'sourceKey',
-        message: 'Select a skill source:',
-        choices: Object.entries(SOURCES).map(([key, src]) => ({
-          name: `${src.name} — ${src.description}`,
-          value: key,
-          short: src.name
-        }))
-      }
-    ]);
+    const { sourceKey } = await inquirer.prompt([{
+      type: 'list',
+      name: 'sourceKey',
+      message: 'Select a skill source:',
+      choices: Object.entries(SOURCES).map(([key, src]) => ({
+        name: `${src.name} — ${src.description}`,
+        value: key,
+        short: src.name
+      }))
+    }]);
 
     const source = SOURCES[sourceKey];
 
-    // Handle Express.js local templates
-    if (source.type === 'local') {
-      await handleExpressJS();
-      return;
+    const { outputDir } = await inquirer.prompt([{
+      type: 'input',
+      name: 'outputDir',
+      message: 'Output directory:',
+      default: `./${sourceKey}-skill-pack`
+    }]);
+
+    if (source.type === 'template') {
+      await handleExpressJS(outputDir);
+    } else {
+      await handleGitHubSource(source, outputDir);
     }
-
-    console.log(chalk.cyan(`\n🔍 Discovering skills from ${source.name}...\n`));
-
-    // Step 2: Discover available skills
-    const availableSkills = await discoverSkills(source);
-
-    if (availableSkills.length === 0) {
-      console.log(chalk.yellow('⚠️  No skills found. Exiting.\n'));
-      return;
-    }
-
-    // Step 3: Select skill pack
-    const { skillName } = await inquirer.prompt([
-      {
-        type: 'list',
-        name: 'skillName',
-        message: 'Select a skill pack:',
-        choices: availableSkills.map(skill => ({
-          name: `${skill.displayName}${skill.hasSubSkills ? ` (${skill.subSkills.length} sub-skills)` : ''}`,
-          value: skill.name,
-          short: skill.displayName
-        }))
-      }
-    ]);
-
-    const selectedSkill = availableSkills.find(s => s.name === skillName);
-
-    let subSkillsToFetch = [];
-    if (selectedSkill.hasSubSkills) {
-      // Step 4: Select sub-skills
-      const { subSkills } = await inquirer.prompt([
-        {
-          type: 'checkbox',
-          name: 'subSkills',
-          message: 'Select sub-skills to fetch:',
-          choices: [
-            { name: 'Select All', value: '__all__', checked: true },
-            new inquirer.Separator(),
-            ...selectedSkill.subSkills.map(skill => ({
-              name: skill.split('-').map(word => 
-                word.charAt(0).toUpperCase() + word.slice(1)
-              ).join(' '),
-              value: skill,
-              checked: false
-            }))
-          ]
-        }
-      ]);
-
-      if (subSkills.includes('__all__')) {
-        subSkillsToFetch = selectedSkill.subSkills;
-      } else {
-        subSkillsToFetch = subSkills;
-      }
-
-      if (subSkillsToFetch.length === 0) {
-        console.log(chalk.yellow('\n⚠️  No sub-skills selected. Exiting.\n'));
-        return;
-      }
-    }
-
-    // Step 5: Output directory
-    const { outputDir } = await inquirer.prompt([
-      {
-        type: 'input',
-        name: 'outputDir',
-        message: 'Output directory:',
-        default: `./${skillName}`
-      }
-    ]);
-
-    // Step 6: Confirm
-    console.log(chalk.cyan('\n📋 Summary:'));
-    console.log(chalk.white(`   Source: ${source.name}`));
-    console.log(chalk.white(`   Skill Pack: ${selectedSkill.displayName}`));
-    if (selectedSkill.hasSubSkills) {
-      console.log(chalk.white(`   Sub-skills: ${subSkillsToFetch.length} selected`));
-    }
-    console.log(chalk.white(`   Output: ${outputDir}\n`));
-
-    const { confirm } = await inquirer.prompt([
-      {
-        type: 'confirm',
-        name: 'confirm',
-        message: 'Fetch and save skill pack?',
-        default: true
-      }
-    ]);
-
-    if (!confirm) {
-      console.log(chalk.yellow('\n❌ Cancelled.\n'));
-      return;
-    }
-
-    // Generate files
-    const outputPath = path.resolve(process.cwd(), outputDir);
-    await fs.ensureDir(outputPath);
-    
-    if (selectedSkill.hasSubSkills) {
-      await fs.ensureDir(path.join(outputPath, selectedSkill.subSkillsPath));
-    }
-
-    console.log(chalk.cyan(`\n📥 Fetching from ${source.name}...\n`));
-
-    const rawBase = `https://raw.githubusercontent.com/${source.repo}/${source.branch}`;
-
-    // Fetch main SKILL.md
-    try {
-      const skillUrl = `${rawBase}/${source.skillsPath}/${skillName}/SKILL.md`;
-      console.log(chalk.gray(`   Fetching SKILL.md...`));
-      const content = await fetchRaw(skillUrl);
-      await fs.writeFile(path.join(outputPath, 'SKILL.md'), content);
-      console.log(chalk.green(`   ✓ SKILL.md`));
-    } catch (error) {
-      console.log(chalk.yellow(`   ⚠ SKILL.md not found (${error.message})`));
-    }
-
-    // Fetch README.md if exists
-    try {
-      const readmeUrl = `${rawBase}/${source.skillsPath}/${skillName}/README.md`;
-      console.log(chalk.gray(`   Fetching README.md...`));
-      const content = await fetchRaw(readmeUrl);
-      await fs.writeFile(path.join(outputPath, 'README_ORIGINAL.md'), content);
-      console.log(chalk.green(`   ✓ README_ORIGINAL.md`));
-    } catch (error) {
-      // Optional file, skip
-    }
-
-    // Fetch sub-skills
-    let successCount = 0;
-    let failCount = 0;
-
-    if (selectedSkill.hasSubSkills && subSkillsToFetch.length > 0) {
-      for (const subSkill of subSkillsToFetch) {
-        try {
-          const subSkillUrl = `${rawBase}/${source.skillsPath}/${skillName}/${selectedSkill.subSkillsPath}/${subSkill}.md`;
-          const content = await fetchRaw(subSkillUrl);
-          await fs.writeFile(
-            path.join(outputPath, selectedSkill.subSkillsPath, `${subSkill}.md`),
-            content
-          );
-          console.log(chalk.green(`   ✓ ${subSkill}.md`));
-          successCount++;
-        } catch (error) {
-          console.log(chalk.red(`   ✗ ${subSkill}.md: ${error.message}`));
-          failCount++;
-        }
-      }
-    }
-
-    // Generate custom README
-    await fs.writeFile(
-      path.join(outputPath, 'README.md'),
-      generateMainReadme(source.name, skillName, subSkillsToFetch, source)
-    );
-
-    console.log(chalk.green.bold(`\n✅ Skill pack fetched successfully!\n`));
-    console.log(chalk.white('Summary:'));
-    console.log(chalk.gray(`  📁 Output: ${outputDir}`));
-    console.log(chalk.gray(`  📄 Main files: SKILL.md, README.md`));
-    if (selectedSkill.hasSubSkills) {
-      console.log(chalk.gray(`  ✓ Sub-skills: ${successCount} fetched`));
-      if (failCount > 0) {
-        console.log(chalk.yellow(`  ✗ Failed: ${failCount} files`));
-      }
-    }
-    console.log(chalk.gray(`\n  💡 Live skills from ${source.name}`));
-    console.log(chalk.gray(`     Re-run anytime to get the latest updates!\n`));
 
   } catch (error) {
     console.error(chalk.red('\n❌ Error:'), error.message);
-    if (error.stack) {
-      console.error(chalk.gray(error.stack));
-    }
     process.exit(1);
   }
 }
