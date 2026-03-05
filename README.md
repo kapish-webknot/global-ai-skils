@@ -13,13 +13,16 @@ A CLI tool that **dynamically discovers and fetches** Claude-optimized skill pac
 
 ```bash
 cd cli
-npm install -g .
+npm install
+npm link
 ```
 
-Now use `gs` command from anywhere:
+Now use `ai-skills` or `global-ai-skills` command from anywhere:
 
 ```bash
-gs
+ai-skills
+# or
+global-ai-skills
 ```
 
 ### Local Usage
@@ -30,12 +33,14 @@ npm install
 npm start
 ```
 
+See [INSTALLATION.md](./INSTALLATION.md) for detailed setup, troubleshooting, and usage examples.
+
 ## Quick Start
 
 ```bash
 # After global installation
 cd your-project
-gs
+ai-skills
 
 # Select source, skill pack, and sub-skills
 # Files will be generated in your current directory
@@ -85,25 +90,52 @@ From the creators of Next.js & Vercel
 
 **Repo:** [vercel-labs/next-skills](https://github.com/vercel-labs/next-skills)
 
-### 🔧 Express.js Production Architecture
-**NEW!** Custom template-based skill generator with **hierarchical dependencies**
+### 🔧 Express.js Production Architecture ✨ NEW!
+Custom template-based skill generator with **AI context optimization** and **hierarchical dependencies**
 
-**Features:**
-- **ORM-aware database selection** — Pick Mongoose, Prisma, TypeORM, Sequelize, or raw drivers
-- **Filtered database options** — Only shows compatible DBs based on ORM choice
-- **Multiple selections** — Auth, caching, deployment targets
-- **Generated skill packs** — Custom combinations based on your stack
+**🎯 AI-Optimized Features:**
+- **Core Templates** (~150 tokens each) — Ultra-concise, code-first for AI consumption
+- **Standard Templates** (~500 tokens each) — Comprehensive reference with examples
+- **Context Guide** — Token estimates and smart loading strategies
+- **70% Token Reduction** — 1,200 tokens vs 6,000+ for standard templates
 
-**Example Flow:**
+**📦 11 Configuration Categories:**
+- **ORM/ODM** — Mongoose, Prisma, TypeORM, Sequelize, None
+- **Databases** — PostgreSQL, MongoDB, MySQL, SQLite, MariaDB, CockroachDB, TimescaleDB
+- **Authentication** — JWT, Session-based, OAuth 2.0, Passport.js
+- **Logging** — Winston, Pino (5x faster), Morgan, Bunyan
+- **Security** — Helmet, CORS, Zod Validation, Rate Limiting
+- **Testing** — Jest, Mocha, Vitest
+- **Messaging** — BullMQ, RabbitMQ, Kafka
+- **Observability** — Prometheus, Datadog, Sentry
+- **Resilience** — Health Checks, Circuit Breaker, Graceful Shutdown
+- **Caching** — Redis, Memcached, In-memory
+- **Real-time** — WebSockets, Server-Sent Events
+- **Deployment** — Docker/K8s, AWS, GCP, Azure, VPS, Serverless
+
+**🚀 Smart Selection Flow:**
 ```
 1. Select ORM: Prisma
-2. Databases: ✓ PostgreSQL ✓ MongoDB (filtered by Prisma support)
-3. Auth: ✓ JWT ✓ OAuth2
-4. Caching: ✓ Redis
-5. Real-time: WebSockets
-6. Deployment: ✓ Docker/K8s ✓ AWS
-→ Generates 15+ skill files tailored to YOUR stack
+2. Databases: ✓ PostgreSQL (filtered by Prisma support)
+3. Auth: ✓ JWT
+4. Logging: Pino (fastest)
+5. Security: ✓ Helmet ✓ CORS ✓ Zod ✓ Rate Limiting
+6. Testing: Jest
+7. Messaging: BullMQ
+8. Observability: Prometheus
+9. Resilience: ✓ Health Checks ✓ Graceful Shutdown
+10. Caching: ✓ Redis
+11. Real-time: WebSockets
+12. Deployment: ✓ Docker/K8s
+13. Template Depth: Core (AI-optimized) [RECOMMENDED]
+
+→ Generates 24+ skill files + CONTEXT_GUIDE.md
 ```
+
+**📊 Template Depth Options:**
+- **Core** — AI-optimized, ~150 tokens each (Feed to Claude/GPT)
+- **Standard** — Full detail, ~500 tokens each (Human reference)
+- **Both** — Core for AI + Standard for developers
 
 **ORM → Database Compatibility Matrix:**
 
@@ -148,7 +180,7 @@ Production-ready backend architecture templates
 ### Frontend Skills (Vercel)
 ```bash
 cd your-project
-gs
+ai-skills
 
 # 1. Select "Vercel Agent Skills"
 # 2. Choose "React Best Practices"
@@ -160,38 +192,61 @@ gs
 # - react-best-practices/rules/*.md (40+ detailed rules)
 ```
 
-### Backend Skills (Express.js)
+### Backend Skills (Express.js) - AI-Optimized
 ```bash
 cd your-backend-project
-gs
+ai-skills
 
 # 1. Select "Express.js Production Architecture"
 # 2. Choose ORM: Prisma
-# 3. Select databases: PostgreSQL, MongoDB
+# 3. Select databases: PostgreSQL
 # 4. Select auth: JWT
-# 5. Select caching: Redis
-# 6. Select real-time: WebSockets
-# 7. Select deployment: Docker/Kubernetes
-# 8. Output to ./expressjs-skill-pack
+# 5. Select logging: Pino (5x faster than Winston)
+# 6. Select security: All (Helmet, CORS, Zod, Rate Limiting)
+# 7. Select testing: Jest
+# 8. Select messaging: BullMQ
+# 9. Select observability: Prometheus
+# 10. Select resilience: Health Checks, Graceful Shutdown
+# 11. Select caching: Redis
+# 12. Select real-time: None (or WebSockets)
+# 13. Select deployment: Docker/Kubernetes
+# 14. Select template depth: Core (AI-optimized) [RECOMMENDED]
+# 15. Output to ./expressjs-skill-pack
 
-# Now use:
-# - expressjs-skill-pack/SKILL.md (overview)
-# - expressjs-skill-pack/references/*.md (detailed guides)
+# Generated files:
+# - CONTEXT_GUIDE.md (How to use with AI - token estimates)
+# - README.md (Your stack overview)
+# - core/*.md (9 AI-optimized templates, ~1,200 tokens total)
+# - references/*.md (24+ detailed guides)
+
+# Feed to Claude/GPT:
+# → Attach all files from core/ directory
+# → Or select specific files based on CONTEXT_GUIDE.md
 ```
 
-## Use with Claude
+## Use with Claude/GPT
 
-1. Run `gs` to fetch a skill pack
+### Option 1: Complete Context (~1,200 tokens)
+1. Run `ai-skills` and select "Core" template depth
 2. Navigate to output directory
-3. Copy relevant `.md` files
-4. Provide as context to Claude (or any AI coding assistant)
-5. Ask specific questions — Claude will follow the structured guidance
+3. Attach **all files from core/ directory** to Claude
+4. Ask questions — full context available
+
+### Option 2: Selective Context (300-600 tokens)
+1. Read `CONTEXT_GUIDE.md` for recommendations
+2. Attach **only relevant core files** for your task
+3. Example: Security setup → Attach helmet.md, cors.md, rate-limiting.md
+
+### Option 3: Reference Lookup
+1. Keep standard templates for deep dives
+2. Use core templates for AI, standard for humans
+3. Best of both worlds
 
 ## Updates
 
-Re-run `gs` anytime to fetch the latest:
+Re-run `ai-skills` anytime to fetch the latest:
 ```bash
-gs
+ai-skills
 ```
 
 The CLI always pulls from the `main` branch, so you get the freshest content.
