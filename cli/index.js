@@ -19,6 +19,22 @@ const ORM_DATABASE_MAP = {
   'none': ['postgresql', 'mongodb', 'mysql', 'sqlite', 'mariadb', 'sqlserver', 'cockroachdb', 'timeseries']
 };
 
+// Auth → Session Store compatibility
+const AUTH_STORE_MAP = {
+  'jwt': null, // JWT doesn't need session store
+  'session-based': ['redis', 'mongodb', 'postgresql', 'memcached'],
+  'oauth2': ['redis', 'mongodb', 'postgresql'],
+  'passport': ['redis', 'mongodb', 'postgresql', 'memcached']
+};
+
+// Deployment → Database compatibility (some deployments prefer certain DBs)
+const DEPLOYMENT_DB_RECOMMENDATIONS = {
+  'serverless': ['mongodb', 'postgresql', 'mysql'], // Serverless prefers managed DBs
+  'docker-kubernetes': ['postgresql', 'mongodb', 'mysql', 'mariadb'],
+  'aws': ['postgresql', 'mongodb', 'mysql'],
+  'vps-pm2': ['postgresql', 'mongodb', 'mysql', 'sqlite', 'mariadb']
+};
+
 // Available skill sources
 const SOURCES = {
   callstack: {
@@ -56,7 +72,13 @@ const SOURCES = {
       orm: ['mongoose', 'prisma', 'typeorm', 'sequelize', 'none'],
       database: ['postgresql', 'mongodb', 'mysql', 'sqlite', 'mariadb', 'sqlserver', 'cockroachdb', 'timeseries'],
       auth: ['jwt', 'session-based', 'oauth2', 'passport'],
+      logging: ['winston', 'pino', 'morgan', 'bunyan'],
+      security: ['helmet', 'cors', 'validation-zod', 'rate-limiting'],
       caching: ['redis', 'memcached', 'in-memory', 'none'],
+      messaging: ['bullmq', 'rabbitmq', 'kafka', 'none'],
+      testing: ['jest', 'mocha', 'vitest', 'none'],
+      observability: ['prometheus', 'datadog', 'sentry', 'none'],
+      resilience: ['health-checks', 'circuit-breaker', 'graceful-shutdown', 'none'],
       realtime: ['websockets', 'sse', 'none'],
       deployment: ['docker-kubernetes', 'aws', 'gcp', 'azure', 'vps-pm2', 'serverless']
     }
@@ -134,22 +156,34 @@ async function discoverSkills(source) {
         .filter(item => 
           item.type === 'blob' &&
           item.path.startsWith(skill.fullPath) &&
-          (item.path.includes('/references/') || item.path.includes('/rules/')) &&
+          item.path !== skill.path && // Exclude SKILL.md itself
           item.path.endsWith('.md') &&
           !item.path.endsWith('_sections.md') &&
-          !item.path.endsWith('_template.md')
+          !item.path.endsWith('_template.md') &&
+          !item.path.includes('README.md')
         )
         .map(item => {
           const filename = item.path.split('/').pop();
-          return filename.replace('.md', '');
+          const relativePath = item.path.replace(skill.fullPath + '/', '');
+          return {
+            name: filename.replace('.md', ''),
+            path: relativePath
+          };
         });
+
+      // Determine if files are in subdirectory or root
+      const hasSubDir = subSkills.some(s => s.path.includes('/'));
+      const subSkillsPath = hasSubDir ? 
+        (subSkills.find(s => s.path.includes('references/')) ? 'references' : 'rules') : 
+        null;
 
       skills.push({
         name: skill.name,
         displayName: skill.name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
         subSkills: subSkills.length > 0 ? subSkills : null,
         hasSubSkills: subSkills.length > 0,
-        subSkillsPath: subSkills.length > 0 ? (tree.tree.find(i => i.path.includes(`${skill.fullPath}/references/`)) ? 'references' : 'rules') : null
+        subSkillsPath: subSkillsPath,
+        fullPath: skill.fullPath
       });
     }
 
@@ -496,7 +530,7 @@ async function handleExpressJS(outputDir) {
   const { database } = await inquirer.prompt([{
     type: 'checkbox',
     name: 'database',
-    message: 'Select Database(s):',
+    message: `Select Database(s) (compatible with ${orm}):`,
     choices: availableDatabases.map(db => ({
       name: db.charAt(0).toUpperCase() + db.slice(1),
       value: db,
@@ -515,29 +549,122 @@ async function handleExpressJS(outputDir) {
     name: 'auth',
     message: 'Select Authentication method(s):',
     choices: [
-      { name: 'JWT (JSON Web Tokens)', value: 'jwt', checked: true },
-      { name: 'Session-based (Express Session)', value: 'session-based' },
-      { name: 'OAuth 2.0', value: 'oauth2' },
-      { name: 'Passport.js', value: 'passport' }
+      { name: 'JWT - Stateless, scalable, perfect for APIs', value: 'jwt', checked: true },
+      { name: 'Session-based - Traditional, server-side storage', value: 'session-based' },
+      { name: 'OAuth 2.0 - Third-party authentication (Google, GitHub)', value: 'oauth2' },
+      { name: 'Passport.js - 500+ authentication strategies', value: 'passport' }
     ]
   }]);
 
-  // 4. Select Caching
+  // 3.5 Select Logging
+  const { logging } = await inquirer.prompt([{
+    type: 'list',
+    name: 'logging',
+    message: 'Select Logging solution:',
+    choices: [
+      { name: 'Winston - Industry standard, most popular (flexible transports)', value: 'winston' },
+      { name: 'Pino - Fastest logger, 5x faster than Winston (low overhead)', value: 'pino', checked: true },
+      { name: 'Morgan - Simple HTTP request logger (easy setup)', value: 'morgan' },
+      { name: 'Bunyan - JSON-first, battle-tested (used by Netflix)', value: 'bunyan' }
+    ],
+    default: 'pino'
+  }]);
+
+  // 3.6 Select Security features
+  const { security } = await inquirer.prompt([{
+    type: 'checkbox',
+    name: 'security',
+    message: 'Select Security features:',
+    choices: [
+      { name: 'Helmet - HTTP security headers (XSS, clickjacking protection)', value: 'helmet', checked: true },
+      { name: 'CORS - Cross-origin resource sharing (API security)', value: 'cors', checked: true },
+      { name: 'Zod Validation - TypeScript-first input validation', value: 'validation-zod', checked: true },
+      { name: 'Rate Limiting - Protect against abuse & DDoS', value: 'rate-limiting', checked: true }
+    ]
+  }]);
+
+  // 4. Select Testing
+  const { testing } = await inquirer.prompt([{
+    type: 'list',
+    name: 'testing',
+    message: 'Select Testing framework:',
+    choices: [
+      { name: 'Jest - Most popular, zero config (great mocking)', value: 'jest' },
+      { name: 'Mocha - Flexible, battle-tested (highly customizable)', value: 'mocha' },
+      { name: 'Vitest - Vite-native, ultra-fast (modern alternative)', value: 'vitest' },
+      { name: 'None - Skip testing setup', value: 'none' }
+    ],
+    default: 'jest'
+  }]);
+
+  // 5. Select Messaging
+  const { messaging } = await inquirer.prompt([{
+    type: 'list',
+    name: 'messaging',
+    message: 'Select Message Queue (for async jobs):',
+    choices: [
+      { name: 'BullMQ - Redis-based, reliable (job scheduling, retries)', value: 'bullmq' },
+      { name: 'RabbitMQ - Enterprise, AMQP protocol (complex workflows)', value: 'rabbitmq' },
+      { name: 'Kafka - High throughput, event streaming (big data)', value: 'kafka' },
+      { name: 'None - No message queue needed', value: 'none' }
+    ],
+    default: 'bullmq'
+  }]);
+
+  // 6. Select Observability
+  const { observability } = await inquirer.prompt([{
+    type: 'list',
+    name: 'observability',
+    message: 'Select Observability/Monitoring:',
+    choices: [
+      { name: 'Prometheus - Industry standard, time-series metrics', value: 'prometheus' },
+      { name: 'Datadog - Full APM, enterprise solution (paid)', value: 'datadog' },
+      { name: 'Sentry - Error tracking, performance monitoring', value: 'sentry' },
+      { name: 'None - Skip observability setup', value: 'none' }
+    ],
+    default: 'prometheus'
+  }]);
+
+  // 7. Select Resilience
+  const { resilience } = await inquirer.prompt([{
+    type: 'checkbox',
+    name: 'resilience',
+    message: 'Select Resilience patterns:',
+    choices: [
+      { name: 'Health Checks - Kubernetes probes, load balancer routing', value: 'health-checks', checked: true },
+      { name: 'Circuit Breaker - Prevent cascading failures', value: 'circuit-breaker' },
+      { name: 'Graceful Shutdown - Zero-downtime deployments', value: 'graceful-shutdown', checked: true }
+    ]
+  }]);
+
+  // 8. Select Caching - smart recommendations based on auth
+  const needsSessionStore = auth.some(a => AUTH_STORE_MAP[a]);
+  const recommendedCaches = needsSessionStore 
+    ? ['redis', 'memcached'] 
+    : ['redis', 'memcached', 'in-memory'];
+
   const { caching } = await inquirer.prompt([{
     type: 'checkbox',
     name: 'caching',
-    message: 'Select Caching layer(s):',
+    message: needsSessionStore 
+      ? 'Select Caching/Session Store (Redis recommended for sessions):'
+      : 'Select Caching layer(s):',
     choices: [
-      { name: 'Redis', value: 'redis', checked: true },
+      { name: 'Redis', value: 'redis', checked: needsSessionStore || true },
       { name: 'Memcached', value: 'memcached' },
-      { name: 'In-memory (Node.js Map)', value: 'in-memory' },
-      { name: 'None', value: 'none' }
-    ]
+      { name: 'In-memory (Node.js Map)', value: 'in-memory', disabled: needsSessionStore },
+      { name: 'None', value: 'none', disabled: needsSessionStore }
+    ].filter(c => !c.disabled)
   }]);
+
+  if (needsSessionStore && caching.length === 0) {
+    console.log(chalk.yellow('\n⚠️  Session-based auth requires a cache/session store. Exiting.\n'));
+    return;
+  }
 
   // 5. Select Real-time
   const { realtime } = await inquirer.prompt([{
-    type: 'list',
+    type: 'checkbox',
     name: 'realtime',
     message: 'Select Real-time communication:',
     choices: [
@@ -562,7 +689,29 @@ async function handleExpressJS(outputDir) {
     ]
   }]);
 
-  const selections = { orm: [orm], database, auth, caching, realtime: [realtime], deployment };
+  // 7. Select Template Depth (NEW)
+  const { templateDepth } = await inquirer.prompt([{
+    type: 'list',
+    name: 'templateDepth',
+    message: 'Select template detail level:',
+    choices: [
+      { name: 'Core - AI-optimized, concise code only (~150 tokens each) [RECOMMENDED]', value: 'core' },
+      { name: 'Standard - Full detail with examples (~500 tokens each)', value: 'standard' },
+      { name: 'Both - Core for AI + Standard for reference', value: 'both' }
+    ],
+    default: 'core'
+  }]);
+
+  // Smart warnings
+  if (deployment.includes('serverless') && database.includes('sqlite')) {
+    console.log(chalk.yellow('\n⚠️  Warning: SQLite is not recommended for serverless deployments.'));
+  }
+
+  if (realtime.includes('websockets') && deployment.includes('serverless')) {
+    console.log(chalk.yellow('\n⚠️  Warning: WebSockets don\'t work well with serverless. Consider SSE or API Gateway WebSockets.'));
+  }
+
+  const selections = { orm: [orm], database, auth, caching, realtime, deployment };
 
   // Confirm
   console.log(chalk.cyan('\n📋 Summary:'));
@@ -570,7 +719,7 @@ async function handleExpressJS(outputDir) {
   console.log(chalk.white(`   Databases: ${database.join(', ')}`));
   console.log(chalk.white(`   Auth: ${auth.join(', ')}`));
   console.log(chalk.white(`   Caching: ${caching.join(', ')}`));
-  console.log(chalk.white(`   Real-time: ${realtime}`));
+  console.log(chalk.white(`   Real-time: ${realtime.length > 0 ? realtime.join(', ') : 'none'}`));
   console.log(chalk.white(`   Deployment: ${deployment.join(', ')}`));
   console.log(chalk.white(`   Output: ${outputDir}\n`));
 
@@ -589,18 +738,38 @@ async function handleExpressJS(outputDir) {
   // Generate files
   const outputPath = path.resolve(outputDir);
   await fs.ensureDir(outputPath);
-  await fs.ensureDir(path.join(outputPath, 'references'));
+  
+  // Create directories based on template depth
+  if (templateDepth === 'core' || templateDepth === 'both') {
+    await fs.ensureDir(path.join(outputPath, 'core'));
+  }
+  if (templateDepth === 'standard' || templateDepth === 'both') {
+    await fs.ensureDir(path.join(outputPath, 'references'));
+  }
 
   console.log(chalk.cyan('\n📦 Generating skill pack...\n'));
 
+  // Copy CONTEXT_GUIDE.md
+  const contextGuidePath = path.join(__dirname, 'templates', 'expressjs', 'CONTEXT_GUIDE.md');
+  if (await fs.pathExists(contextGuidePath)) {
+    await fs.copy(contextGuidePath, path.join(outputPath, 'CONTEXT_GUIDE.md'));
+    console.log(chalk.green('   ✓ CONTEXT_GUIDE.md'));
+  }
+
   // Generate README
+  const readme = generateExpressReadme(selections);
+  const readmeWithDepth = readme + `\n## Template Depth: ${templateDepth}\n\n` +
+    (templateDepth === 'core' ? '✅ Using AI-optimized core templates (~150 tokens each)\n📂 All files in /core/ directory\n' :
+     templateDepth === 'standard' ? '📚 Using standard detailed templates (~500 tokens each)\n📂 All files in /references/ directory\n' :
+     '📦 Both core (AI-optimized) and standard (reference) templates included\n📂 Core files in /core/, References in /references/\n');
+  
   await fs.writeFile(
     path.join(outputPath, 'README.md'),
-    generateExpressReadme(selections)
+    readmeWithDepth
   );
   console.log(chalk.green('   ✓ README.md'));
 
-  // Generate base skills (always included)
+  // Define base skills (used in calculations)
   const baseSkills = [
     'project-structure',
     'api-design-versioning',
@@ -610,11 +779,40 @@ async function handleExpressJS(outputDir) {
     'monitoring-observability'
   ];
 
-  for (const skill of baseSkills) {
-    await fs.writeFile(
-      path.join(outputPath, 'references', `${skill}.md`),
-      `# ${skill.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}\n\nBase skill content coming soon.\n`
-    );
+  // Copy core templates if selected
+  if (templateDepth === 'core' || templateDepth === 'both') {
+    const coreTemplatesMap = {
+      'pino': logging === 'pino',
+      'winston': logging === 'winston',
+      'helmet': security.includes('helmet'),
+      'cors': security.includes('cors'),
+      'zod-validation': security.includes('validation-zod'),
+      'rate-limiting': security.includes('rate-limiting'),
+      'jest': testing === 'jest',
+      'bullmq': messaging === 'bullmq',
+      'prometheus': observability === 'prometheus',
+      'health-checks': resilience.includes('health-checks')
+    };
+
+    for (const [template, shouldInclude] of Object.entries(coreTemplatesMap)) {
+      if (shouldInclude) {
+        const coreTemplatePath = path.join(__dirname, 'templates', 'expressjs', 'core', `${template}.md`);
+        if (await fs.pathExists(coreTemplatePath)) {
+          await fs.copy(coreTemplatePath, path.join(outputPath, 'core', `${template}.md`));
+          console.log(chalk.green(`   ✓ core/${template}.md`));
+        }
+      }
+    }
+  }
+
+  // Generate base skills (always included in references if standard or both)
+  if (templateDepth === 'standard' || templateDepth === 'both') {
+    for (const skill of baseSkills) {
+      await fs.writeFile(
+        path.join(outputPath, 'references', `${skill}.md`),
+        `# ${skill.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}\n\nBase skill content coming soon.\n`
+      );
+    }
   }
 
   // Generate ORM skills
@@ -637,6 +835,69 @@ async function handleExpressJS(outputDir) {
     console.log(chalk.green(`   ✓ auth-${a}.md`));
   }
 
+  // Generate logging skill
+  const loggingTemplatePath = path.join(__dirname, 'templates', 'expressjs', 'logging', `${logging}.md`);
+  if (await fs.pathExists(loggingTemplatePath)) {
+    await fs.copy(loggingTemplatePath, path.join(outputPath, 'references', `logging-${logging}.md`));
+    console.log(chalk.green(`   ✓ logging-${logging}.md`));
+  }
+
+  // Generate security skills
+  for (const s of security) {
+    const securityTemplatePath = path.join(__dirname, 'templates', 'expressjs', 'security', `${s}.md`);
+    if (await fs.pathExists(securityTemplatePath)) {
+      await fs.copy(securityTemplatePath, path.join(outputPath, 'references', `security-${s}.md`));
+      console.log(chalk.green(`   ✓ security-${s}.md`));
+    }
+  }
+
+  // Generate rate limiting if selected in security
+  if (security.includes('rate-limiting')) {
+    const rateLimitPath = path.join(__dirname, 'templates', 'expressjs', 'rate-limiting', 'redis-limiter.md');
+    if (await fs.pathExists(rateLimitPath)) {
+      await fs.copy(rateLimitPath, path.join(outputPath, 'references', 'rate-limiting-redis.md'));
+      console.log(chalk.green(`   ✓ rate-limiting-redis.md`));
+    }
+  }
+
+  // Generate testing skill
+  if (testing !== 'none') {
+    const testingTemplatePath = path.join(__dirname, 'templates', 'expressjs', 'testing', `${testing}.md`);
+    if (await fs.pathExists(testingTemplatePath)) {
+      await fs.copy(testingTemplatePath, path.join(outputPath, 'references', `testing-${testing}.md`));
+      console.log(chalk.green(`   ✓ testing-${testing}.md`));
+    }
+  }
+
+  // Generate messaging skill
+  if (messaging !== 'none') {
+    const messagingTemplatePath = path.join(__dirname, 'templates', 'expressjs', 'messaging', `${messaging}.md`);
+    if (await fs.pathExists(messagingTemplatePath)) {
+      await fs.copy(messagingTemplatePath, path.join(outputPath, 'references', `messaging-${messaging}.md`));
+      console.log(chalk.green(`   ✓ messaging-${messaging}.md`));
+    }
+  }
+
+  // Generate observability skill
+  if (observability !== 'none') {
+    const observabilityTemplatePath = path.join(__dirname, 'templates', 'expressjs', 'observability', `${observability}.md`);
+    if (await fs.pathExists(observabilityTemplatePath)) {
+      await fs.copy(observabilityTemplatePath, path.join(outputPath, 'references', `observability-${observability}.md`));
+      console.log(chalk.green(`   ✓ observability-${observability}.md`));
+    }
+  }
+
+  // Generate resilience skills
+  for (const r of resilience) {
+    if (r !== 'none') {
+      const resilienceTemplatePath = path.join(__dirname, 'templates', 'expressjs', 'resilience', `${r}.md`);
+      if (await fs.pathExists(resilienceTemplatePath)) {
+        await fs.copy(resilienceTemplatePath, path.join(outputPath, 'references', `resilience-${r}.md`));
+        console.log(chalk.green(`   ✓ resilience-${r}.md`));
+      }
+    }
+  }
+
   // Generate caching skills
   for (const c of caching) {
     const content = generateExpressTemplate('caching', c);
@@ -657,11 +918,30 @@ async function handleExpressJS(outputDir) {
     console.log(chalk.green(`   ✓ deployment-${d}.md`));
   }
 
+  // Generate realtime skills
+  for (const r of realtime) {
+    if (r !== 'none') {
+      const content = generateExpressTemplate('realtime', r);
+      await fs.writeFile(
+        path.join(outputPath, 'references', `realtime-${r}.md`),
+        content
+      );
+      console.log(chalk.green(`   ✓ realtime-${r}.md`));
+    }
+  }
+
+  const totalFiles = baseSkills.length + 1 + auth.length + 1 + security.length + 
+    (testing !== 'none' ? 1 : 0) + (messaging !== 'none' ? 1 : 0) + 
+    (observability !== 'none' ? 1 : 0) + resilience.filter(r => r !== 'none').length +
+    caching.length + deployment.length + realtime.filter(r => r !== 'none').length;
+
   console.log(chalk.green.bold(`\n✅ Express.js skill pack generated!\n`));
   console.log(chalk.white('Summary:'));
   console.log(chalk.gray(`  📁 Output: ${outputDir}`));
-  console.log(chalk.gray(`  📄 Base skills: ${baseSkills.length} files`));
-  console.log(chalk.gray(`  📄 Stack-specific: ${1 + auth.length + caching.length + deployment.length} files\n`));
+  console.log(chalk.gray(`  📄 Total files: ${totalFiles}`));
+  console.log(chalk.gray(`  🎯 Stack: ${orm} + ${database.join(', ')}`));
+  console.log(chalk.gray(`  🔐 Security: ${security.length} features`));
+  console.log(chalk.gray(`  📊 Monitoring: ${logging}, ${observability}\n`));
 }
 
 // Handle GitHub-based sources
@@ -698,7 +978,7 @@ async function handleGitHubSource(source, outputDir) {
         { name: 'Select All', value: '__all__', checked: true },
         new inquirer.Separator(),
         ...selectedSkill.subSkills.map(skill => ({
-          name: skill.split('-').map(word => 
+          name: skill.name.split('-').map(word => 
             word.charAt(0).toUpperCase() + word.slice(1)
           ).join(' '),
           value: skill,
@@ -737,9 +1017,7 @@ async function handleGitHubSource(source, outputDir) {
 
   const outputPath = path.resolve(outputDir);
   await fs.ensureDir(outputPath);
-  if (selectedSkill.hasSubSkills) {
-    await fs.ensureDir(path.join(outputPath, selectedSkill.subSkillsPath));
-  }
+  // Don't create subdirectory if subSkillsPath is null (files are in root)
 
   console.log(chalk.cyan(`\n📥 Fetching from ${source.name}...\n`));
 
@@ -747,7 +1025,7 @@ async function handleGitHubSource(source, outputDir) {
 
   // Fetch main SKILL.md
   try {
-    const skillUrl = `${rawBase}/${source.skillsPath}/${skillName}/SKILL.md`;
+    const skillUrl = `${rawBase}/${selectedSkill.fullPath}/SKILL.md`;
     const content = await fetchRaw(skillUrl);
     await fs.writeFile(path.join(outputPath, 'SKILL.md'), content);
     console.log(chalk.green(`   ✓ SKILL.md`));
@@ -760,16 +1038,27 @@ async function handleGitHubSource(source, outputDir) {
   if (selectedSkill.hasSubSkills && subSkillsToFetch.length > 0) {
     for (const subSkill of subSkillsToFetch) {
       try {
-        const url = `${rawBase}/${source.skillsPath}/${skillName}/${selectedSkill.subSkillsPath}/${subSkill}.md`;
+        // Handle both root-level and subdirectory files
+        const subSkillPath = typeof subSkill === 'object' ? subSkill.path : subSkill;
+        const subSkillName = typeof subSkill === 'object' ? subSkill.name : subSkill;
+        
+        const url = `${rawBase}/${selectedSkill.fullPath}/${subSkillPath}`;
         const content = await fetchRaw(url);
-        await fs.writeFile(
-          path.join(outputPath, selectedSkill.subSkillsPath, `${subSkill}.md`),
-          content
-        );
-        console.log(chalk.green(`   ✓ ${subSkill}.md`));
+        
+        // Determine output path
+        const outputFilePath = subSkillPath.includes('/') 
+          ? path.join(outputPath, subSkillPath)
+          : path.join(outputPath, subSkillPath);
+        
+        // Ensure directory exists
+        await fs.ensureDir(path.dirname(outputFilePath));
+        await fs.writeFile(outputFilePath, content);
+        
+        console.log(chalk.green(`   ✓ ${subSkillPath}`));
         successCount++;
       } catch (error) {
-        console.log(chalk.red(`   ✗ ${subSkill}.md: ${error.message}`));
+        const displayName = typeof subSkill === 'object' ? subSkill.path : subSkill;
+        console.log(chalk.red(`   ✗ ${displayName}: ${error.message}`));
       }
     }
   }
